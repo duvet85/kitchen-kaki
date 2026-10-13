@@ -370,20 +370,84 @@ Deno.serve(async (req) => {
       const text = body.text;
       if (typeof text !== 'string' || !text.trim() || text.length > 400) return reply(400, { error: 'bad_request' });
       const out = await generate(key, [
-        "A family cook in Singapore sent this message about the week's planned home meals. Work out what they need.",
+        "A family in Singapore sent this message to a meal-planning helper about the week's planned home dinners. Work out what they want.",
+        'intent: "add" = they want a dish ADDED (e.g. "I want to add a prawn dish on Thursday", "can we have curry on Friday"); "adjust" = something changed and dishes may need swapping (someone unwell, short of time, an ingredient missing or not bought, no chilli, vegetarian); "remove" = they want a dish taken off; "swap" = they want one dish changed for something else; "guests" = extra people coming; "cheaper" = spend less; "spicier" = more chilli; "festival" = a festival or party meal; "fasting" = fasting; "thanks" = thanks or chit-chat; "unclear" = you cannot tell.',
+        'want: for "add" or "swap", the foods they ask FOR, as short plain words (e.g. ["prawn"]). A food they want is NEVER put in missing.',
+        'missing: ingredients they do not have or could not buy (e.g. "no prawns", "kangkong sold out"), as short plain words. Only for things they LACK.',
         'needs: any of "light" (someone is unwell or wants bland, easy-to-digest food), "quick" (short on time), "vegetarian", "mild" (no chilli).',
-        'missing: ingredients they do not have or could not buy, as short plain words (e.g. "chicken", "prawns").',
+        'day: the weekday they name ("mon" to "sun"), or "none". If a weekday is named, only that day is meant.',
         'scope: "today", "tomorrow", "rest" (rest of the week) or "unspecified".',
+        'Read the message literally. Do not invent needs or missing items that the message does not say.',
         '',
         `Message: ${JSON.stringify(text)}`,
       ].join('\n'), {
         type: 'OBJECT',
         properties: {
+          intent: { type: 'STRING', enum: ['adjust', 'add', 'remove', 'swap', 'guests', 'cheaper', 'spicier', 'festival', 'fasting', 'thanks', 'unclear'] },
+          want: { type: 'ARRAY', items: { type: 'STRING' } },
           needs: { type: 'ARRAY', items: { type: 'STRING', enum: ['light', 'quick', 'vegetarian', 'mild'] } },
           missing: { type: 'ARRAY', items: { type: 'STRING' } },
+          day: { type: 'STRING', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'none'] },
           scope: { type: 'STRING', enum: ['today', 'tomorrow', 'rest', 'unspecified'] },
         },
-        required: ['needs', 'missing', 'scope'],
+        required: ['intent', 'want', 'needs', 'missing', 'day', 'scope'],
+      });
+      if (out.error) return reply(out.status, { error: out.error, detail: out.detail });
+      return reply(200, { ...out.value!, model: out.model });
+    }
+
+    // "Ask Kitchen Kaki", the Gemini way: reads the message and the menu, writes Kaki's reply and proposes edits.
+    // Keep this prompt the same as kakiPrompt in src/ai/kaki.ts. The app checks every edit and the owner confirms; nothing about the family is sent.
+    if (body.mode === 'kaki') {
+      const text = body.text;
+      const ctx = (body as { ctx?: any }).ctx;
+      const okCtx = ctx && typeof ctx === 'object' && typeof ctx.today === 'string' && Array.isArray(ctx.menu) && ctx.menu.length <= 7
+        && Array.isArray(ctx.candidates) && ctx.candidates.length <= 200 && Array.isArray(ctx.catalogue) && ctx.catalogue.length <= 600
+        && Array.isArray(ctx.kitchen) && ctx.kitchen.length <= 300 && JSON.stringify(ctx).length < 120_000;
+      if (typeof text !== 'string' || !text.trim() || text.length > 400 || !okCtx) return reply(400, { error: 'bad_request' });
+      const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const out = await generate(key, [
+        "You are Kitchen Kaki, a warm, practical kitchen helper for a Singapore family and their domestic helper. They sent a message about this week's planned home dinners. Reply as Kaki and propose the exact edits the app should make.",
+        'The menu lists only dishes not yet cooked, by day. Candidates are the dishes the app already knows are fine for this family. Use ONLY dish ids from these lists and ingredient keys from the catalogue. Never invent ids, keys or days.',
+        'Edits (actions):',
+        '- add: put a candidate dish (dish = its id) on a day.',
+        '- swap: replace a dish on the menu (dish = its id on that day) with a candidate (to = its id).',
+        '- remove: take a dish (dish = its id on that day) off the menu.',
+        '- adapt: cook a dish on the menu differently, as the family\'s own adapted copy (dish = its id on that day). Use it for "less spicy", "no chilli", "no prawns in this dish", "lighter", "use tofu instead". Give: spice (0 none, 1 mild, 2 medium, 3 hot; use -1 for unchanged), replace (catalogue key from to catalogue key, for an ingredient to swap), drop (catalogue keys to leave out), steps (the full rewritten steps, 4 to 14 short plain steps, ONLY if the method changes, otherwise leave empty), note (one short line on what changed, e.g. "no chilli, steamed not fried").',
+        'Rules: if someone names a weekday, change only that day. "today" and "tomorrow" are relative to the given today. Prefer changes that use ingredients already in the kitchen and need nothing extra to buy. Never put in a dish the person is avoiding. If someone WANTS an ingredient or dish, that is an add, not an avoidance. Keep to at most 6 edits. If you cannot or should not edit anything (thanks, a question, extra guests, cost), return no actions and say what to do in the reply.',
+        'reply: 1 to 3 short, friendly sentences in Kaki\'s voice saying what you would change and why, for example "Can! I\'ll make Thursday\'s curry mild with the chilli on the side." The owner confirms before anything is changed, so never say it is already done.',
+        '',
+        `Today: ${ctx.today}`,
+        `Menu: ${JSON.stringify(ctx.menu)}`,
+        `Candidates: ${JSON.stringify(ctx.candidates)}`,
+        `Already bought: ${JSON.stringify(ctx.kitchen)}`,
+        `Catalogue (key = name):\n${ctx.catalogue.map((c: unknown) => String(c).slice(0, 120)).join('\n')}`,
+        '',
+        `Message: ${JSON.stringify(text)}`,
+      ].join('\n'), {
+        type: 'OBJECT',
+        properties: {
+          reply: { type: 'STRING' },
+          actions: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                type: { type: 'STRING', enum: ['add', 'swap', 'remove', 'adapt'] },
+                day: { type: 'STRING', enum: days },
+                dish: { type: 'STRING' },
+                to: { type: 'STRING' },
+                spice: { type: 'INTEGER' },
+                replace: { type: 'ARRAY', items: { type: 'OBJECT', properties: { from: { type: 'STRING' }, to: { type: 'STRING' } }, required: ['from', 'to'] } },
+                drop: { type: 'ARRAY', items: { type: 'STRING' } },
+                steps: { type: 'ARRAY', items: { type: 'STRING' } },
+                note: { type: 'STRING' },
+              },
+              required: ['type', 'day', 'dish'],
+            },
+          },
+        },
+        required: ['reply', 'actions'],
       });
       if (out.error) return reply(out.status, { error: out.error, detail: out.detail });
       return reply(200, { ...out.value!, model: out.model });

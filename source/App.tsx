@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import FamilyScreen from './src/screens/FamilyScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -18,6 +18,7 @@ import RatingsScreen from './src/screens/RatingsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { AiProvider } from './src/ai/AiProvider';
 import { AskKakiButton } from './src/screens/AskKaki';
+import Splash from './src/Splash';
 import { StateProvider, useApp } from './src/state';
 import { C, F, Icon, IconName, Text, useLayout } from './src/ui';
 
@@ -39,13 +40,14 @@ export default function App() {
     ...Ionicons.font,
   });
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.brand} /></View>;
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.brand }}><ActivityIndicator color="#fff" /></View>;
   }
   return (
     <SafeAreaProvider>
       <AiProvider>
         <StateProvider>
           <Shell />
+          <Splash />
         </StateProvider>
       </AiProvider>
     </SafeAreaProvider>
@@ -73,9 +75,7 @@ function Shell() {
             <SafeAreaView edges={['top', 'bottom', 'left']} style={{ width: railWidth, backgroundColor: C.card, borderRightWidth: 1, borderColor: C.line }}>
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
               {!short && <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 22 }}>K</Text>
-                </View>
+                <Image source={require('./assets/logo.png')} style={{ width: 52, height: 52 }} accessibilityLabel="Kitchen Kaki logo" />
                 <Text style={{ fontFamily: F.display, fontSize: 12, marginTop: 6, color: C.brandDeep }}>Kaki</Text>
               </View>}
               <View style={{ gap: short ? 0 : 6, paddingTop: 8 }}>

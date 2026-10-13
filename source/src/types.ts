@@ -76,6 +76,9 @@ export interface Recipe {
   /** added by the family through Gemini; aiDrafted stays true so it keeps the "AI-drafted" mark */
   custom?: boolean;
   aiDrafted?: boolean;
+  /** the family's own copy of a built-in or added dish, changed by Ask Kaki (less spice, another ingredient, lighter method); adaptedFrom is the dish it started as */
+  aiAdapted?: boolean;
+  adaptedFrom?: string;
   /** brought in from a web page's own recipe data (not written by AI); the page link stays as sourceUrl */
   imported?: boolean;
   importedAt?: string;

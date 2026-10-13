@@ -5,10 +5,10 @@ import { CATALOGUE } from '../data/store';
 import DishPhoto from '../DishPhoto';
 import { PHOTOS } from '../data/photos';
 import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
-import { DAY_NAMES, dayAfter, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
+import { DAY_NAMES, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { PlannedDish, Recipe } from '../types';
-import { Button, C, Chip, F, Icon, IconButton, Label, Row, Text, chillies } from '../ui';
+import { Button, C, Chip, F, Icon, IconButton, Label, Notice, Row, Text, chillies } from '../ui';
 import { Sheet, cap } from './FamilyScreen';
 import PhotoControls from './PhotoControls';
 import { CategorySheet } from './Categories';
@@ -43,6 +43,9 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
   return (
     <Sheet title={r.name} onClose={onClose}>
       {cats && <CategorySheet recipe={r} onClose={() => setCats(false)} />}
+      {exclusionReasons(r, state.members).length > 0 && (
+        <Notice tone="warn" icon="alert-circle-outline">Not planned for your family: {exclusionReasons(r, state.members).join('; ')}. It stays in the recipe book but is never put on the menu or offered as a swap.</Notice>
+      )}
       <View style={{ marginTop: 12 }}>
         <DishPhoto recipe={r} banner height={210} placeholder />
         {photo && (
@@ -69,6 +72,7 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
         {mine2.map((c) => <Chip key={c.id} tone="brand" label={`${c.emoji} ${c.name}`} />)}
         {r.imported && <Chip tone="brand" icon="download-outline" label={`Imported from ${r.sourceName ?? 'a website'}`} />}
         {r.aiDrafted && <Chip tone="warn" icon="sparkles" label="AI-drafted, please check" />}
+        {r.aiAdapted && <Chip tone="warn" icon="sparkles" label="Adapted by Gemini, please check" />}
         {isSoup(r) && <Chip tone="brand" icon="water-outline" label="Soup" />}
         {r.vegetarian && <Chip tone="good" icon="leaf" label="Vegetarian" />}
         {r.pork && <Chip tone="warn" label="Pork" />}
@@ -153,6 +157,8 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
   const best = term ? [] : [...shown].filter((x) => !x.blocked).sort((a, b) => b.sc - a.sc).slice(0, 5);
   const all = [...shown].sort((a, b) => a.r.name.localeCompare(b.r.name));
   const from = replace ? recipeById(replace.recipeId) : null;
+  const leftOut = useMemo(() => eligibleRecipes(state).excluded
+    .filter((e) => (course === 'soup') === isSoup(e.recipe) && (!term || e.recipe.name.toLowerCase().includes(term) || e.recipe.cuisine.includes(term))), [state, course, term]);
   const [groupBy, setGroupBy] = useState<'type' | 'cuisine'>('type');
   const [open, setOpen] = useState<string[]>([]);
   const TYPE_GROUPS: [string, string, string, (r: Recipe) => boolean][] = [
@@ -250,7 +256,26 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
           })}
         </>
       )}
-      {!all.length && <Text style={{ color: C.muted, marginTop: 8 }}>Nothing matches “{q}”.</Text>}
+      {leftOut.length > 0 && (
+        <View style={{ marginTop: 14 }}>
+          <Pressable onPress={() => setOpen(open.includes('left') ? open.filter((k) => k !== 'left') : [...open, 'left'])} accessibilityRole="button" accessibilityState={{ expanded: open.includes('left') }}
+            accessibilityLabel={`Left out for your family, ${leftOut.length}`}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
+            <Icon name="ban-outline" size={18} color={C.muted} />
+            <Text style={{ flex: 1, fontFamily: F.display, fontSize: 15 }}>Left out for your family</Text>
+            <Text style={{ color: C.muted, fontSize: 13 }}>{leftOut.length}</Text>
+            <Icon name={open.includes('left') ? 'chevron-up' : 'chevron-down'} size={18} color={C.muted} />
+          </Pressable>
+          {(open.includes('left') || !!term) && leftOut.map((e) => (
+            <Pressable key={e.recipe.id} onPress={() => setPreview(e.recipe)} accessibilityRole="button" accessibilityLabel={`Preview ${e.recipe.name}`}
+              style={{ paddingVertical: 10, borderTopWidth: 1, borderColor: C.line, opacity: 0.8 }}>
+              <Text style={{ fontFamily: F.display, fontSize: 15 }}>{e.recipe.name}</Text>
+              <Text style={{ color: C.amber, fontSize: 12 }}>{e.reasons.join('; ')}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {!all.length && !leftOut.length && <Text style={{ color: C.muted, marginTop: 8 }}>Nothing matches “{q}”.</Text>}
       {preview && <DishDetail recipe={preview} onClose={() => setPreview(null)} />}
     </Sheet>
   );

@@ -2,7 +2,7 @@ import { recipeById } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
 import { AppState, Recipe } from '../types';
 import { PANTRY } from './grocery';
-import { DAY_NAMES, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, isVegDish, spiceRule } from './planner';
+import { DAY_NAMES, dayAfter, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, isVegDish, spiceRule } from './planner';
 
 /**
  * "Ask Kitchen Kaki": last-minute changes to a confirmed week.
@@ -11,7 +11,16 @@ import { DAY_NAMES, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, isV
  */
 export type Need = 'light' | 'quick' | 'vegetarian' | 'mild';
 export type Scope = 'today' | 'tomorrow' | 'rest';
-export interface Ask { needs: Need[]; missing: string[]; scope: Scope | null }
+/** Things people say that Kaki answers with a pointer, never a change: she won't guess at them. */
+export type Topic = 'remove' | 'swap' | 'guests' | 'cheaper' | 'spicier' | 'festival' | 'fasting' | 'thanks';
+export interface Ask {
+  needs: Need[]; missing: string[]; scope: Scope | null;
+  /** a weekday named in the message (Mon = 0): only that day is looked at */
+  day?: number | null;
+  /** the person wants a dish added: the food words they used, and the filters they asked for */
+  add?: { words: string[] };
+  topic?: Topic;
+}
 
 export const NEED_LABEL: Record<Need, string> = {
   light: 'light, easy-to-digest food',
@@ -24,7 +33,7 @@ const has = (t: string, re: RegExp) => re.test(t);
 
 /** Catalogue items a few words of text refer to, e.g. "chicken" -> both chicken cuts. */
 export function itemsNamed(words: string): string[] {
-  const w = words.toLowerCase().replace(/[^a-z ]/g, ' ').trim();
+  const w = words.toLowerCase().replace(/kailan|kai lan/g, 'kai lan').replace(/choy sum|chye sim|choysum/g, 'chye sim').replace(/[^a-z ]/g, ' ').trim();
   if (!w) return [];
   const tokens = w.split(/\s+/).filter((x) => x.length > 2 && !['the', 'any', 'some', 'fresh', 'for', 'and', 'today', 'tomorrow', 'tonight', 'left'].includes(x));
   if (!tokens.length) return [];
@@ -36,27 +45,70 @@ export function itemsNamed(words: string): string[] {
     .map(([key]) => key);
 }
 
+const DAY_WORDS: [RegExp, number][] = [
+  [/\bmon(day)?s?\b/, 0], [/\btue(s|sday)?s?\b/, 1], [/\bwed(nesday)?s?\b/, 2], [/\bthu(r|rs|rsday)?s?\b/, 3], [/\bfri(day)?s?\b/, 4],
+  [/\bsaturdays?\b|\b(?:on|for|this|next) sat\b/, 5], [/\bsundays?\b|\b(?:on|for|this|next) sun\b/, 6],
+];
+/** The weekday named in a message (Mon = 0), or null. */
+export function dayIn(text: string): number | null {
+  const t = text.toLowerCase();
+  return DAY_WORDS.find(([re]) => re.test(t))?.[1] ?? null;
+}
+
+const FOOD_STOP = new Set(('add added adding include put throw want wanna would like need needs the and for with can could please some any one more another extra additional dish dishes recipe recipes meal food ' +
+  'make cook have get got give try new different nice good tasty something anything today tomorrow tonight dinner lunch this next week day days our my your their we you its it ' +
+  'mon monday tue tues tuesday wed wednesday thu thur thurs thursday fri friday sat saturday sun sunday on to of in at a an is be too also really maybe instead rest').split(' '));
+/** The food words in a message: what the person asked for, e.g. "prawn". */
+export function foodWords(text: string): string[] {
+  return [...new Set(text.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !FOOD_STOP.has(w)))];
+}
+
+const ADD_RE = /\b(add|adding|include|put in|throw in|one more|another|extra|additional)\b|\bi (?:want|wanna|would like|'d like|feel like|need)\b|\b(?:can|could) (?:we|i) (?:have|get|cook|make|eat)\b|\blet'?s (?:have|cook|make|eat)\b|\b(?:cook|make) (?:us |me )?(?:some |a |an )?\w+ (?:dish|curry|soup)\b/;
+
 /** Rule-based reading of a message. Returns null when nothing in it is recognised. */
 export function understand(text: string): Ask | null {
   const t = ` ${text.toLowerCase()} `;
+  const day = dayIn(t);
+  const topic = topicOf(t);
   const needs = new Set<Need>();
   if (has(t, /sick|ill\b|unwell|fever|flu\b|cold\b|cough|stomach|diarrh|vomit|sore throat|light|bland|porridge|recover|not feeling well|food poison|gastric/)) needs.add('light');
-  if (has(t, /quick|fast|no time|busy|late\b|rush|short on time|in a hurry/)) needs.add('quick');
+  if (has(t, /quick|\bfast\b|no time|busy|late\b|rush|short on time|in a hurry/)) needs.add('quick');
   if (has(t, /vegetarian|meatless|no meat|veg only|vegan/)) needs.add('vegetarian');
   if (has(t, /(no|less|without|not) (spicy|chilli|chili)|mild|spice[- ]free|not spicy/)) needs.add('mild');
 
   const missing = new Set<string>();
   const re = /(?:no more|no|out of|ran out of|run out of|running out of|don'?t have|do not have|missing|couldn'?t (?:buy|find|get)|can'?t (?:buy|find|get)|cannot (?:buy|find|get)|sold out of|forgot(?: to buy)?|without)\s+(?:any\s+)?([a-z][a-z ,]{1,50})/g;
   for (const m of t.matchAll(re)) {
-    const phrase = m[1].split(/\b(?:but|so|for|at|today|tomorrow|tonight|this|left|in|from|because)\b/)[0];
+    const phrase = m[1].split(/\b(?:but|so|for|at|today|tomorrow|tonight|this|left|in|from|because|on|please)\b/)[0];
     for (const words of phrase.split(/,|\band\b|\bor\b/)) {
       if (/^(meat|time|spicy|chilli|chili)\b/.test(words.trim())) continue;
       for (const k of itemsNamed(words)) missing.add(k);
     }
   }
   const scope: Scope | null = has(t, /tomorrow/) ? 'tomorrow' : has(t, /rest of (the )?week|this week|all week|coming days|next few days/) ? 'rest' : has(t, /today|tonight|dinner|lunch|now/) ? 'today' : null;
-  if (!needs.size && !missing.size) return null;
-  return { needs: [...needs], missing: [...missing], scope };
+
+  // "I want to add a prawn dish on Thursday": adding, not avoiding. The food words are what they WANT, never "missing".
+  // Messages that are about spice, cost, guests, festivals, fasting or thanks get their pointer, unless they plainly say "add".
+  if (topic && !needs.size && !missing.size && !['remove', 'swap'].includes(topic) && !has(t, /\b(add|include|one more|another|extra)\b/)) return { needs: [], missing: [], scope, day, topic };
+  if (!missing.size && ADD_RE.test(t) && !has(t, /\bno more\b/)) {
+    const words = foodWords(text).filter((w) => !/^(quick|fast|light|mild|vegetarian|spicy|chilli|chili)$/.test(w));
+    if (words.length || /dish|soup|curry|recipe/.test(t)) return { needs: [...needs], missing: [], scope, day, add: { words } };
+  }
+  if (!needs.size && !missing.size) return topic ? { needs: [], missing: [], scope, day, topic } : null;
+  return { needs: [...needs], missing: [...missing], scope, day };
+}
+
+/** Requests Kaki points to the right screen for, rather than guessing a change. */
+function topicOf(t: string): Topic | undefined {
+  if (has(t, /\b(thanks|thank you|thx|ty|appreciate|great job|well done)\b/)) return 'thanks';
+  if (has(t, /\b(chinese new year|cny|lunar new year|deepavali|diwali|hari raya|christmas|festival|reunion|birthday|party)\b/)) return 'festival';
+  if (has(t, /\b(fasting|fast on|ramadan|puasa|lent|no meat on)\b/)) return 'fasting';
+  if (has(t, /\b(guests?|visitors?|relatives|friends coming|in-laws|extra people|more people|coming over)\b/)) return 'guests';
+  if (has(t, /\b(cheaper|budget|save money|spend less|spend too much|spending|too expensive|less expensive|costs? too much|economical)\b/)) return 'cheaper';
+  if (has(t, /\b(spicier|more spicy|hotter|more chilli|more chili|add chilli|add chili)\b/)) return 'spicier';
+  if (has(t, /\b(remove|delete|cancel|take off|take out|skip|drop|don'?t want)\b/)) return 'remove';
+  if (has(t, /\b(swap|change|replace|switch|something else|different dish|another dish instead)\b/)) return 'swap';
+  return undefined;
 }
 
 export const isLight = (r: Recipe) => r.spice === 0 && r.satFat === 'low' && r.sodium !== 'high' && !/fried|goreng/i.test(r.name);
@@ -127,9 +179,10 @@ export function replan(state: AppState, ask: Ask, now = new Date()): { changes: 
   const ti = todayIndex(plan.weekOf, now);
   const today = ti < planDays[0] || ti > last ? planDays[0] : ti;
   const scope = ask.scope ?? (ask.missing.length ? 'rest' : ask.needs.includes('light') ? 'tomorrow+' : 'today');
-  const days = planDays.filter((d) =>
+  // A weekday in the message means only that day, whatever else it says.
+  const days = ask.day != null ? planDays.filter((d) => d === ask.day) : planDays.filter((d) =>
     scope === 'today' ? d === today : scope === 'tomorrow' ? d === today + 1 : scope === 'tomorrow+' ? d === today || d === today + 1 : d >= today);
-  if (!days.length) return { changes: [], days, note: 'Nothing is left on this week\'s menu for that day. Make next week\'s menu on the Menu tab.' };
+  if (!days.length) return { changes: [], days, note: ask.day != null ? `There is no dinner on ${DAY_NAMES[ask.day]} this week, so there is nothing to change.` : 'Nothing is left on this week\'s menu for that day. Make next week\'s menu on the Menu tab.' };
 
   const uncooked = plan.dishes.filter((d) => !isCooked(plan, d));
   const affected = uncooked.filter((d) => {
@@ -255,10 +308,88 @@ export function applyChanges(st: AppState, changes: Change[], newId: () => strin
 
 export const dayName = (d: number) => DAY_NAMES[d] ?? `Day ${d + 1}`;
 
-/** Gemini's reading of a message, checked and mapped onto our own needs and shop items. */
-export function fromGemini(raw: { needs?: unknown; missing?: unknown; scope?: unknown }): Ask | null {
-  const needs = (Array.isArray(raw.needs) ? raw.needs : []).filter((n): n is Need => ['light', 'quick', 'vegetarian', 'mild'].includes(n as string));
-  const missing = [...new Set((Array.isArray(raw.missing) ? raw.missing : []).flatMap((w) => (typeof w === 'string' ? itemsNamed(w) : [])))];
+/** Dishes to offer when someone asks for one to be added on a day. Never changes anything; the owner taps one to add it. */
+export function addSuggestions(state: AppState, ask: Ask) {
+  const words = ask.add?.words ?? [];
+  const day = ask.day ?? null;
+  const { ok, excluded } = eligibleRecipes(state);
+  const protein: Record<string, string[]> = { prawn: ['seafood'], shrimp: ['seafood'], seafood: ['seafood'], squid: ['seafood'], crab: ['seafood'], fish: ['fish'], chicken: ['chicken'], pork: ['pork'], beef: ['beef'], egg: ['egg'], eggs: ['egg'], tofu: ['tofu'], veg: ['veg'], vegetable: ['veg'], vegetables: ['veg'], veggie: ['veg'], veggies: ['veg'] };
+  const match = (r: Recipe) => {
+    let m = 0;
+    for (const w of words) {
+      const stem = w.replace(/(es|s)$/, '');
+      const hit = r.name.toLowerCase().split(/\W+/).some((n) => n.startsWith(stem)) ? 3
+        : r.cuisine === w ? 2
+        : (protein[w] ?? protein[stem])?.includes(r.protein) ? 2
+        : w === 'soup' && isSoup(r) ? 2
+        : itemsNamed(w).some((k) => !PANTRY.has(k) && r.ingredients.some((i) => i.item === k)) ? 2 : 0;
+      if (!hit) return 0; // every word they used has to fit
+      m += hit;
+    }
+    return m;
+  };
+  const onDay = new Set(state.plan?.dishes.filter((d) => d.day === day).map((d) => d.recipeId));
+  const wantsSoup = words.includes('soup');
+  const pool = ok.filter((r) => !onDay.has(r.id) && (words.length ? match(r) > 0 : true) && fits(r, ask.needs) && (wantsSoup || !words.length ? true : !isSoup(r)));
+  const ranked = pool.map((r) => {
+    const chk = day != null && state.plan ? dayAfter(state, day, r) : null;
+    return { r, score: match(r) + familyScore(r, state) * 0.2 - (chk ? chk.blocks.length * 4 + chk.soft.length * 1.5 : 0), notes: chk ? [...chk.blocks, ...chk.soft] : [] };
+  }).sort((a, b) => b.score - a.score).slice(0, 3);
+  const leftOut = words.length ? excluded.filter((e) => match(e.recipe) > 0 && fits(e.recipe, ask.needs)).slice(0, 3).map((e) => ({ name: e.recipe.name, reasons: e.reasons })) : [];
+  return { day, words, picks: ranked, leftOut };
+}
+
+/** The wording Kaki uses for requests she points elsewhere. No change is ever made from these. */
+export const TOPIC_REPLY: Record<Topic, string> = {
+  remove: "To take a dish off, open the Menu tab and tap Remove on it. I won't remove dishes by myself.",
+  swap: "To change one dish, open the Menu tab and tap Swap on it. Or tell me what's wrong with it (no prawns, too spicy, need something quick, someone unwell) and I'll suggest swaps.",
+  guests: "I can't plan for extra people yet. On the Menu tab, tap +Dish on that day to add another dish. The shopping list will update.",
+  cheaper: "I can't re-price the week yet. The Menu tab shows a ballpark cost for each dish and the week, and Swap shows the cost of each choice so you can pick cheaper ones.",
+  spicier: "Spice follows what each person said in the quiz. Change it on the Family tab, or tap Swap on a dish to pick a spicier one.",
+  festival: "Festival menus aren't built in yet. Tap +Dish on that day on the Menu tab to add the dishes you want.",
+  fasting: "I don't plan around fasting yet. Tell me which dishes to change (for example \"no meat\" or \"vegetarian\" for a day) and I'll suggest swaps, or tap Swap on the Menu tab.",
+  thanks: "Anytime, kaki! 😊",
+};
+
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+/** Gemini's reading of a message, checked and mapped onto our own needs, shop items and days. */
+export function fromGemini(raw: { needs?: unknown; missing?: unknown; scope?: unknown; intent?: unknown; day?: unknown; want?: unknown }): Ask | null {
+  const needs = [...new Set((Array.isArray(raw.needs) ? raw.needs : []).filter((n): n is Need => ['light', 'quick', 'vegetarian', 'mild'].includes(n as string)))];
+  const intent = typeof raw.intent === 'string' ? raw.intent : 'adjust';
   const scope = (['today', 'tomorrow', 'rest'] as const).find((x) => x === raw.scope) ?? null;
-  return needs.length || missing.length ? { needs: [...new Set(needs)], missing, scope } : null;
+  const di = DAY_KEYS.indexOf(typeof raw.day === 'string' ? raw.day.toLowerCase().slice(0, 3) : '');
+  const day = di >= 0 ? di : null;
+  const want = (Array.isArray(raw.want) ? raw.want : []).filter((w): w is string => typeof w === 'string').flatMap((w) => foodWords(w)).slice(0, 5);
+  if (intent === 'add') return { needs, missing: [], scope, day, add: { words: want } };
+  const topic = (['remove', 'swap', 'guests', 'cheaper', 'spicier', 'festival', 'fasting', 'thanks'] as const).find((x) => x === intent);
+  if (topic) return { needs: [], missing: [], scope, day, topic };
+  const missing = [...new Set((Array.isArray(raw.missing) ? raw.missing : []).flatMap((w) => (typeof w === 'string' ? itemsNamed(w) : [])))];
+  return needs.length || missing.length ? { needs, missing, scope, day } : null;
+}
+
+/** A reading in plain words, for showing side by side. */
+export function describeAsk(a: Ask | null): string {
+  if (!a) return 'not understood';
+  const bits: string[] = [];
+  if (a.topic) bits.push(`${a.topic} (Kaki only points to the right screen)`);
+  if (a.add) bits.push(`add a dish${a.add.words.length ? ` (${a.add.words.join(', ')})` : ''}`);
+  if (a.needs.length) bits.push(`needs: ${a.needs.join(', ')}`);
+  if (a.missing.length) bits.push(`missing: ${[...new Set(a.missing.map((k) => CATALOGUE[k]?.name.toLowerCase() ?? k))].join(', ')}`);
+  if (a.day != null) bits.push(`only ${DAY_NAMES[a.day]}`); else if (a.scope) bits.push(a.scope === 'rest' ? 'rest of the week' : a.scope);
+  return bits.join(' · ');
+}
+
+/** What Kaki would put on screen for a reading, in a line or two. Nothing is changed: this is only the proposal. */
+export function describeKaki(state: AppState, a: Ask | null): string {
+  if (!a) return 'Says she did not catch it and shows the suggestion chips.';
+  if (a.topic) return TOPIC_REPLY[a.topic];
+  if (!state.plan) return 'Asks for a menu to be made first.';
+  if (a.add) {
+    if (a.day == null) return 'Asks which day, with a button for each day. Nothing is added until you tap a dish.';
+    const r = addSuggestions(state, a);
+    return `${r.picks.length ? `Offers ${r.picks.map((p) => p.r.name).join(', ')} on ${DAY_NAMES[a.day]}; you tap one to add it.` : `No dish to offer on ${DAY_NAMES[a.day]}.`}${r.leftOut.length ? ` Left out for the family: ${r.leftOut.map((l) => `${l.name} (${l.reasons.join('; ')})`).join(', ')}.` : ''}`;
+  }
+  const res = replan(state, a);
+  if (res.note) return res.note;
+  return `Proposes, for ${res.days.map(dayName).join(' and ')}: ${res.changes.map((c) => `${c.fromId === c.toId ? `keep ${recipeById(c.fromId).name} cooked lighter` : `${recipeById(c.fromId).name} → ${c.toId ? recipeById(c.toId).name : 'no swap found'}`}`).join('; ')}. You confirm before anything changes.`;
 }

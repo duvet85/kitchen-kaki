@@ -152,9 +152,13 @@ export function stableJson(v: unknown): string {
 export const translateViaFamily = (cfg: FamilyConfig, body: { name: string; steps: string[]; lang: string }) =>
   callGemini<{ name: string; steps: string[] }>(cfg, body);
 
+/** "Ask Kitchen Kaki": Gemini's reply and proposed edits for a message and the menu, through the same function. */
+export const kakiViaFamily = (cfg: FamilyConfig, text: string, ctx: import('../ai/kaki').KakiContext) =>
+  callGemini<import('../ai/kaki').KakiRaw>(cfg, { mode: 'kaki', text, ctx });
+
 /** "Ask Kitchen Kaki": structured reading of a message, through the same function. */
 export const understandViaFamily = (cfg: FamilyConfig, text: string) =>
-  callGemini<{ needs: string[]; missing: string[]; scope: string }>(cfg, { mode: 'understand', text });
+  callGemini<import('../ai/gemini').UnderstandRaw>(cfg, { mode: 'understand', text });
 
 /** Recipe draft through the same function. Only the dish text and the grocery list are sent. */
 export const draftViaFamily = async (cfg: FamilyConfig, text: string, catalogue: string[], caption = false) => {
@@ -206,6 +210,6 @@ async function callGemini<T>(cfg: FamilyConfig, body: object): Promise<T> {
   if (status === 401) throw new FamilyError('Supabase refused the call. Untick "Verify JWT" on the translate function.');
   if (code === 'gemini' && detail) throw new FamilyError(`No Gemini model answered (${detail}). Tap "Test Gemini" in Settings to see what the key can do.`);
   if ((body as { mode?: string }).mode === 'import' && (status === 400 || code === 'bad_request' || code === 'no_key')) throw new FamilyError('The translate function in Supabase is an older version and cannot import links yet. Paste the new code into it and Deploy again.');
-  if (code === 'bad_request' && (body as { mode?: string }).mode === 'check') throw new FamilyError('The translate function in Supabase is an older version. Paste the new code into it and Deploy again.');
+  if ((code === 'bad_request' || status === 400) && ['check', 'kaki'].includes((body as { mode?: string }).mode ?? '')) throw new FamilyError('The translate function in Supabase is an older version. Paste the new code into it and Deploy again.');
   throw new FamilyError('Gemini call failed. Try again.');
 }
