@@ -5,11 +5,11 @@ import { C, F, R, Text } from './ui';
 // The artwork is split in two layers: the pot with the "Kitchen Kaki" wordmark, and everything around it.
 const SURROUND = require('../assets/splash-surround.png');
 const POT = require('../assets/splash-pot.png');
-const ART_W = 942;
-const ART_H = 1422;
+const ART_W = 1048;
+const ART_H = 1570;
 const ART_RATIO = ART_H / ART_W;
 // Where the pot layer sits inside the artwork (pixels in the 942 x 1422 artwork).
-const POT_BOX = { x: 170, y: 430, w: 602, h: 730 };
+const POT_BOX = { x: 190, y: 495, w: 680, h: 805 };
 // The point the utensils and ingredients gather around, as a percentage of the artwork.
 const CENTRE = '50% 56%';
 
@@ -50,22 +50,31 @@ function Sparkle({ x, y, size, delay, color = '#FFFFFF' }: { x: number; y: numbe
   );
 }
 
-/** A bubble that rises from the stew and fades, once everything has settled. */
-function Bubble({ x, y, size, delay }: { x: number; y: number; size: number; delay: number }) {
+/** A stew bubble: swells up out of the stew, floats a little higher and pops (fades), over and over. */
+function Bubble({ x, y, size, delay, rise = 26 }: { x: number; y: number; size: number; delay: number; rise?: number }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
+    // wait for everything to settle, then bubble forever: swell, rise, pop, start again from the stew
+    const run = Animated.sequence([
       Animated.delay(GATHER_MS + delay),
-      Animated.timing(v, { toValue: 1, duration: 2200, easing: Easing.out(Easing.quad), useNativeDriver: useNative }),
-    ]));
-    loop.start();
-    return () => loop.stop();
+      Animated.loop(Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 2400, easing: Easing.out(Easing.quad), useNativeDriver: useNative }),
+        Animated.timing(v, { toValue: 0, duration: 0, useNativeDriver: useNative }),
+        Animated.delay(500),
+      ])),
+    ]);
+    run.start();
+    return () => run.stop();
   }, [v, delay]);
   return (
     <Animated.View pointerEvents="none" style={{
-      position: 'absolute', left: `${x}%`, top: `${y}%`, width: size, height: size, borderRadius: size / 2, backgroundColor: C.saffron,
-      opacity: v.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
-      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -44] }) }, { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.1] }) }],
+      position: 'absolute', left: `${x}%`, top: `${y}%`, width: size, height: size, borderRadius: size / 2,
+      marginLeft: -size / 2, marginTop: -size / 2, backgroundColor: '#F2A93B', borderWidth: 1.5, borderColor: '#D98A1F',
+      opacity: v.interpolate({ inputRange: [0, 0.18, 0.72, 1], outputRange: [0, 1, 1, 0] }),
+      transform: [
+        { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [rise, -10] }) },
+        { scale: v.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0.3, 1, 1.12] }) },
+      ],
     }} />
   );
 }
@@ -89,7 +98,7 @@ export default function Splash({ onStart }: { onStart: () => void }) {
   const button = useRise(GATHER_MS - 50);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F8EFDE', alignItems: 'center', overflow: 'hidden' }}>
+    <View style={{ flex: 1, backgroundColor: '#FDF0DF', alignItems: 'center', overflow: 'hidden' }}>
       <View style={{ width: artW, height: artH }}>
         {/* utensils and ingredients: start larger and further out, then close in and stop */}
         <Animated.Image
@@ -114,15 +123,16 @@ export default function Splash({ onStart }: { onStart: () => void }) {
             transform: [{ translateY: gather.interpolate({ inputRange: [0, 1], outputRange: [70 * k * 2, 0] }) }],
           }}
         />
-        <Sparkle x={17.5} y={5.6} size={30} delay={0} />
+        <Sparkle x={17.5} y={5.5} size={30} delay={0} />
         <Sparkle x={78.6} y={6.7} size={34} delay={800} />
         <Sparkle x={8} y={61.5} size={38} delay={1400} />
         <Sparkle x={90} y={61.5} size={38} delay={400} />
         <Sparkle x={12.7} y={57} size={22} delay={1100} />
         <Sparkle x={86.5} y={45} size={26} delay={2000} color={C.saffron} />
-        <Bubble x={52} y={37} size={9} delay={0} />
-        <Bubble x={56} y={38} size={7} delay={700} />
-        <Bubble x={49} y={38} size={6} delay={1400} />
+        <Bubble x={53.6} y={33.3} size={13} delay={0} rise={30} />
+        <Bubble x={49.3} y={35.5} size={10} delay={600} rise={26} />
+        <Bubble x={56.7} y={36.3} size={11} delay={1200} rise={26} />
+        <Bubble x={52.3} y={38.6} size={8} delay={1800} rise={20} />
       </View>
 
       <View style={{ position: 'absolute', left: 32, right: 32, bottom: 40, alignItems: 'center', gap: 20, maxWidth: 520 }}>

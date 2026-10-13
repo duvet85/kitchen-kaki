@@ -37,11 +37,11 @@ export function AskKakiButton() {
       <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Ask Kitchen Kaki"
         style={({ pressed }) => ({
           position: 'absolute', right: 16, bottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8,
-          backgroundColor: pressed ? C.brandDeep : C.brand, paddingLeft: 10, paddingRight: 18, paddingVertical: 8, borderRadius: 30,
+          backgroundColor: pressed ? C.gold : C.saffron, paddingLeft: 12, paddingRight: 18, paddingVertical: 9, borderRadius: 30,
           shadowColor: '#2F4030', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6,
         })}>
-        <KakiBadge size={30} />
-        <Text style={{ color: '#F7F2E4', fontWeight: '800' }}>Ask Kaki</Text>
+        <KakiBadge size={38} />
+        <Text style={{ color: C.brandDeep, fontWeight: '800' }}>Ask Kaki</Text>
       </Pressable>
       {open && <AskKaki onClose={() => setOpen(false)} />}
     </>

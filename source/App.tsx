@@ -82,7 +82,7 @@ function Shell() {
             <SafeAreaView edges={['top', 'bottom', 'left']} style={{ width: railWidth, backgroundColor: C.card, borderRightWidth: 1, borderColor: C.line }}>
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
               {!short && <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <KakiBadge size={56} />
+                <KakiBadge size={64} />
                 <Text style={{ fontFamily: F.display, fontSize: 12, marginTop: 6, color: C.brandDeep }}>Kaki</Text>
               </View>}
               <View style={{ gap: short ? 0 : 6, paddingTop: 8 }}>

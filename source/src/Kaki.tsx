@@ -2,10 +2,10 @@ import React from 'react';
 import { Image, View, ViewStyle } from 'react-native';
 import { C, F, Text } from './ui';
 
-/** The round Kitchen Kaki mascot badge. */
+/** The Kitchen Kaki pot mascot on its own, with no background. `size` is its width. */
 export function KakiBadge({ size = 34 }: { size?: number }) {
   return (
-    <Image source={require('../assets/logo-badge.png')} accessibilityLabel="Kitchen Kaki" style={{ width: size, height: size, borderRadius: size / 2 }} />
+    <Image source={require('../assets/logo-pot.png')} accessibilityLabel="Kitchen Kaki" resizeMode="contain" style={{ width: size, height: size * (661 / 767) }} />
   );
 }
 
