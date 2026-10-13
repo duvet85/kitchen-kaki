@@ -91,6 +91,7 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
               <Text style={{ color: C.muted, fontSize: 12 }}>{cap(r.cuisine)}{r.course === 'soup' ? ' · Soup' : ''} · {r.minutes} min · {chillies(r.spice)}</Text>
               {r.imported && <Chip tone="brand" icon="download-outline" label={`Imported from ${r.sourceName ?? 'a website'}`} />}
               {r.aiDrafted && <Chip tone="warn" icon="sparkles" label="AI-drafted, please check" />}
+              {r.aiAdapted && <Chip tone="warn" icon="sparkles" label="Adapted by Gemini" />}
             </Pressable>
             {r.custom && <IconButton icon="create-outline" label={`Edit ${r.name}`} onPress={() => setAdding(r)} />}
           </Row>

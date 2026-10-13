@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { playSplash } from '../Splash';
 import { ActivityIndicator, Platform, Pressable, Share, TextInput, View } from 'react-native';
 import { useApp } from '../state';
 import {
@@ -49,6 +50,7 @@ function NotConnected() {
         : await joinFamily(invite, myName);
       if (Platform.OS === 'web' && fromLink) window.history.replaceState(null, '', window.location.pathname);
       setFamily(cfg);
+      playSplash();
     } catch (e) {
       setError(e instanceof FamilyError ? e.message : 'Something went wrong. Check the details and try again.');
     } finally {

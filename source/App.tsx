@@ -4,8 +4,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import FamilyScreen from './src/screens/FamilyScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -17,7 +17,7 @@ import RatingsScreen from './src/screens/RatingsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { AiProvider } from './src/ai/AiProvider';
 import { AskKakiButton } from './src/screens/AskKaki';
-import Splash from './src/Splash';
+import Splash, { onReplaySplash } from './src/Splash';
 import { KakiBadge } from './src/Kaki';
 import { StateProvider, useApp } from './src/state';
 import { C, F, Icon, IconName, Text, useLayout } from './src/ui';
@@ -38,17 +38,11 @@ export default function App() {
     Nunito_400Regular, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black,
     ...Ionicons.font,
   });
-  const [welcomed, setWelcomed] = useState(false);
+  // The welcome screen sits over the app, so the app loads behind it, and "Replay the intro" can bring it back.
+  const [splash, setSplash] = useState(true);
+  useEffect(() => onReplaySplash(() => setSplash(true)), []);
   if (!fontsLoaded) {
     return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.brand} /></View>;
-  }
-  if (!welcomed) {
-    return (
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Splash onStart={() => setWelcomed(true)} />
-      </SafeAreaProvider>
-    );
   }
   return (
     <SafeAreaProvider>
@@ -57,6 +51,12 @@ export default function App() {
           <Shell />
         </StateProvider>
       </AiProvider>
+      {splash && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]}>
+          <StatusBar style="dark" />
+          <Splash onStart={() => setSplash(false)} />
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }

@@ -1,4 +1,6 @@
 import { Platform } from 'react-native';
+import { KAKI_SCHEMA, KakiContext, KakiRaw, kakiPrompt } from './kaki';
+import { UNDERSTAND_SCHEMA, understandPrompt } from './understand';
 import { Lang, Recipe, Translation } from '../types';
 import { DRAFT_PROMPT, DRAFT_SCHEMA, RawDraft, catalogueLines } from './draft';
 import { GEMINI_MODELS } from './models';
@@ -185,35 +187,31 @@ export async function translateRecipe(key: string, r: Recipe, lang: Exclude<Lang
   return { name: String(out.name), steps: out.steps.map(String) };
 }
 
-/** "Ask Kitchen Kaki": turn a message into needs / missing ingredients / which days. Only the message is sent. */
-export async function understandMessage(key: string, text: string): Promise<{ needs: string[]; missing: string[]; scope: string }> {
-  const prompt = [
-    "A family cook in Singapore sent this message about the week's planned home meals. Work out what they need.",
-    'needs: any of "light" (someone is unwell or wants bland, easy-to-digest food), "quick" (short on time), "vegetarian", "mild" (no chilli).',
-    'missing: ingredients they do not have or could not buy, as short plain words (e.g. "chicken", "prawns").',
-    'scope: "today", "tomorrow", "rest" (rest of the week) or "unspecified".',
-    '',
-    `Message: ${JSON.stringify(text)}`,
-  ].join('\n');
+export type UnderstandRaw = { intent?: string; want?: string[]; needs: string[]; missing: string[]; day?: string; scope: string };
+
+/** "Ask Kitchen Kaki": turn a message into what is wanted (see ./understand). Only the message is sent. */
+export async function understandMessage(key: string, text: string): Promise<UnderstandRaw> {
   const { data } = await generateAny<GenerateResponse>(key, {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          needs: { type: 'ARRAY', items: { type: 'STRING', enum: ['light', 'quick', 'vegetarian', 'mild'] } },
-          missing: { type: 'ARRAY', items: { type: 'STRING' } },
-          scope: { type: 'STRING', enum: ['today', 'tomorrow', 'rest', 'unspecified'] },
-        },
-        required: ['needs', 'missing', 'scope'],
-      },
-    },
+    contents: [{ role: 'user', parts: [{ text: understandPrompt(text) }] }],
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: UNDERSTAND_SCHEMA },
   });
   const text2 = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
   try {
     return JSON.parse(text2);
+  } catch {
+    throw new GeminiError('Gemini sent back something unreadable. Try again.');
+  }
+}
+
+/** "Ask Kitchen Kaki": Gemini reads the message and the menu, writes Kaki's reply and proposes edits (see ./kaki). The app checks them and the owner confirms. */
+export async function kakiMessage(key: string, text: string, ctx: KakiContext): Promise<KakiRaw> {
+  const { data } = await generateAny<GenerateResponse>(key, {
+    contents: [{ role: 'user', parts: [{ text: kakiPrompt(text, ctx) }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: KAKI_SCHEMA },
+  });
+  const out = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  try {
+    return JSON.parse(out);
   } catch {
     throw new GeminiError('Gemini sent back something unreadable. Try again.');
   }

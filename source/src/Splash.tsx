@@ -15,6 +15,11 @@ const CENTRE = '50% 56%';
 
 const useNative = Platform.OS !== 'web';
 
+/** Lets other screens ("Replay the intro", after joining a family) bring the welcome screen back. */
+let replay: (() => void) | null = null;
+export const onReplaySplash = (fn: () => void) => { replay = fn; return () => { replay = null; }; };
+export const playSplash = () => replay?.();
+
 /** How long the gathering takes; the sparkles and bubbles begin once it has finished. */
 const GATHER_MS = 1300;
 

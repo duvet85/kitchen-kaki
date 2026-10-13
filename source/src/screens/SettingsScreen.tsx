@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { maskKey, useAi } from '../ai/AiProvider';
 import { GeminiError } from '../ai/gemini';
 import { GEMINI_MODELS } from '../ai/models';
 import { useApp } from '../state';
 import FamilyShare from './FamilyShare';
 import PhotoCredits from './PhotoCredits';
+import { playSplash } from '../Splash';
 import WebRecipes from './WebRecipes';
 import TestGemini from './TestGemini';
+import AskTester from './AskTester';
 import { Button, C, Card, Chip, Grid, H2, Icon, Label, Notice, Row, Screen, Text, s, useLayout } from '../ui';
 
 /** Settings: family sharing through Supabase, the Gemini key when not sharing, demo data reset. */
@@ -95,6 +97,7 @@ export default function SettingsScreen() {
               ))}
             </View>
             <TestGemini />
+            <AskTester />
           </Card>
         )) : (
         <Card>
@@ -120,6 +123,7 @@ export default function SettingsScreen() {
                 <Button kind="danger" icon="trash-outline" label="Remove key" onPress={remove} />
               </Row>
               <TestGemini />
+            <AskTester />
             </View>
           ) : (
             <View style={{ marginTop: 6 }}>{form}</View>
@@ -155,6 +159,17 @@ export default function SettingsScreen() {
       )}
 
       {!helper && <WebRecipes />}
+      <Card style={{ marginTop: 22 }}>
+        <Row style={{ flexWrap: 'nowrap', gap: 14 }}>
+          <Image source={require('../../assets/logo.png')} style={{ width: 72, height: 72 }} accessibilityLabel="Kitchen Kaki logo" />
+          <View style={{ flex: 1 }}>
+            <H2 style={{ marginBottom: 2 }}>Kitchen Kaki</H2>
+            <Text style={{ color: C.muted, fontSize: 13 }}>Your kitchen buddy. The logo is original artwork made for this app (brand folder).</Text>
+          </View>
+        </Row>
+        <View style={{ marginTop: 12, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="play-outline" label="Replay the intro" onPress={playSplash} /></View>
+      </Card>
+
       <PhotoCredits />
 
       {!family && (

@@ -72,7 +72,7 @@ const num = (v: unknown, lo: number, hi: number, fallback: number) => {
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
 
 /** Allergens the ingredient names suggest, so a missed one is still flagged. The owner can edit the final list. */
-const HINTS: [Allergen, RegExp][] = [
+export const HINTS: [Allergen, RegExp][] = [
   ['peanut', /peanut|groundnut/i], ['treenut', /cashew|almond|walnut|pistachio|hazelnut|macadamia/i],
   ['shellfish', /prawn|shrimp|crab|lobster|clam|mussel|oyster|belacan|scallop|cockle/i],
   ['fish', /\bfish\b|salmon|cod|seabass|snapper|mackerel|anchov|tuna|sardine|fish sauce|ikan|dory/i],
@@ -80,7 +80,7 @@ const HINTS: [Allergen, RegExp][] = [
   ['gluten', /flour|wheat|pasta|spaghetti|noodle|bread|soy sauce|soya sauce|breadcrumb|macaroni|udon|ramen/i],
   ['soy', /soy|tofu|tau |miso|tempeh|edamame|tauhu|taugeh/i],
 ];
-const MEAT = { pork: /pork|bacon|\bham\b|lard|char siew|luncheon/i, beef: /beef|veal|brisket|oxtail/i, other: /chicken|duck|mutton|lamb|fish|prawn|shrimp|crab|squid|salmon|egg|anchov|fish sauce|oyster|belacan/i };
+export const MEAT = { pork: /pork|bacon|\bham\b|lard|char siew|luncheon/i, beef: /beef|veal|brisket|oxtail/i, other: /chicken|duck|mutton|lamb|fish|prawn|shrimp|crab|squid|salmon|egg|anchov|fish sauce|oyster|belacan/i };
 
 export type Draft = { recipe: Recipe; newItems: NonNullable<import('../types').AppState['customItems']> };
 
