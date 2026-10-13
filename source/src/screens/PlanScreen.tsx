@@ -85,11 +85,11 @@ export default function PlanScreen() {
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#BCD0F0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · FROM {fmtDate(plan.weekOf).toUpperCase()}</Text>
+              <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · FROM {fmtDate(plan.weekOf).toUpperCase()}</Text>
               <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 32, marginTop: 4, letterSpacing: -1 }}>{ballpark(cost.fresh)}</Text>
-              <Text style={{ color: '#D9E4F7', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
+              <Text style={{ color: '#E4E8CF', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
             </View>
-            <View style={{ backgroundColor: plan.status === 'draft' ? '#FFF0D2' : '#DCE7F8', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+            <View style={{ backgroundColor: plan.status === 'draft' ? '#FFF0D2' : '#E9EDCF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
               <Icon name={plan.status === 'draft' ? 'eye-off-outline' : 'checkmark-circle'} size={13} color={plan.status === 'draft' ? C.amber : C.green} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: plan.status === 'draft' ? C.amber : C.green }}>{plan.status === 'draft' ? 'Draft' : 'Sent'}</Text>
             </View>
@@ -106,13 +106,13 @@ export default function PlanScreen() {
             return (
               <View>
                 <Row style={{ marginTop: 12, gap: 6 }}>
-                  <Icon name="cart-outline" size={15} color="#D9E4F7" />
-                  <Text style={{ color: '#D9E4F7', fontSize: 13, fontWeight: '600' }}>Shopping: {got} of {total} ticked off</Text>
+                  <Icon name="cart-outline" size={15} color="#E4E8CF" />
+                  <Text style={{ color: '#E4E8CF', fontSize: 13, fontWeight: '600' }}>Shopping: {got} of {total} ticked off</Text>
                 </Row>
                 {(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).length > 0 && (
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>New to buy after the change</Text>
-                    <Text style={{ color: '#D9E4F7', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
+                    <Text style={{ color: '#E4E8CF', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
                     {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your helper needs to go to the shop again.</Text>}
                   </View>
                 )}
@@ -120,18 +120,18 @@ export default function PlanScreen() {
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Not in the shop</Text>
                     {swaps.map(([item, s]) => (
-                      <Text key={item} style={{ color: '#D9E4F7', fontSize: 13 }}>
+                      <Text key={item} style={{ color: '#E4E8CF', fontSize: 13 }}>
                         {CATALOGUE[item]?.name ?? item}: {s.to ? `bought ${s.to} instead` : 'skipped'}{s.by ? ` (${s.by})` : ''}
                       </Text>
                     ))}
-                    {swaps.some(([, s]) => s.to === null) && <Text style={{ color: '#BCD0F0', fontSize: 12, marginTop: 2 }}>Ask Kaki can change a dish that needs a skipped item.</Text>}
+                    {swaps.some(([, s]) => s.to === null) && <Text style={{ color: '#C9D3A0', fontSize: 12, marginTop: 2 }}>Ask Kaki can change a dish that needs a skipped item.</Text>}
                   </View>
                 )}
               </View>
             );
           })()}
           {settings.weeklyBudget > 0 && (
-            <Text style={{ marginTop: 12, color: overBudget ? '#FFD9D4' : '#D9E4F7', fontWeight: '600', fontSize: 13 }}>
+            <Text style={{ marginTop: 12, color: overBudget ? '#FFD9D4' : '#E4E8CF', fontWeight: '600', fontSize: 13 }}>
               {overBudget
                 ? `Likely over your $${settings.weeklyBudget} budget. Swap a pricey dish.`
                 : cost.fresh * 1.15 > settings.weeklyBudget ? `Close to your $${settings.weeklyBudget} budget.` : `Likely within your $${settings.weeklyBudget} budget.`}
@@ -291,7 +291,7 @@ function Stat({ value, label }: { value: number; label: string }) {
   return (
     <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, flexGrow: 1 }}>
       <Text style={{ color: '#fff', fontFamily: F.display, fontSize: 20 }}>{value}</Text>
-      <Text style={{ color: '#D9E4F7', fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: '#E4E8CF', fontSize: 12 }}>{label}</Text>
     </View>
   );
 }

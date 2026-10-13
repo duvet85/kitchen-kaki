@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { KakiBadge } from '../Kaki';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAi } from '../ai/AiProvider';
@@ -36,11 +37,11 @@ export function AskKakiButton() {
       <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Ask Kitchen Kaki"
         style={({ pressed }) => ({
           position: 'absolute', right: 16, bottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8,
-          backgroundColor: pressed ? C.brandDeep : C.brand, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28,
-          shadowColor: '#3A2410', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+          backgroundColor: pressed ? C.brandDeep : C.brand, paddingLeft: 10, paddingRight: 18, paddingVertical: 8, borderRadius: 30,
+          shadowColor: '#2F4030', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6,
         })}>
-        <Icon name="chatbubble-ellipses" size={20} color="#fff" />
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Ask Kaki</Text>
+        <KakiBadge size={30} />
+        <Text style={{ color: '#F7F2E4', fontWeight: '800' }}>Ask Kaki</Text>
       </Pressable>
       {open && <AskKaki onClose={() => setOpen(false)} />}
     </>

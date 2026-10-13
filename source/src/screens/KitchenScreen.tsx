@@ -148,7 +148,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
           ))}
           <Card style={{ backgroundColor: C.brand }}>
             <Text style={{ fontFamily: F.display, fontSize: 17, color: '#fff' }}>Teach {helper} 3 dishes in 2 hours</Text>
-            <Text style={{ color: '#D9E4F7', marginTop: 4, lineHeight: 20 }}>A soup, a steamed or braised dish and a stir-fry that fit your family's food rules, with a 2-hour plan and the groceries. You, a relative or a cook you know can teach.</Text>
+            <Text style={{ color: '#E4E8CF', marginTop: 4, lineHeight: 20 }}>A soup, a steamed or braised dish and a stir-fry that fit your family's food rules, with a 2-hour plan and the groceries. You, a relative or a cook you know can teach.</Text>
             <View style={{ marginTop: 12, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="school-outline" label="Plan a lesson" onPress={() => setPlanning(true)} /></View>
           </Card>
           {past.map((l) => <LessonRow key={l.id} lesson={l} lang="en" onOpen={() => setViewing(l)} />)}

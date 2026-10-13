@@ -46,7 +46,7 @@ export default function FamilyScreen() {
         <View style={{ marginTop: 10 }}>
           <Bar value={state.members.length ? done / state.members.length : 0} color="#fff" />
         </View>
-        <Text style={{ color: '#D9E4F7', marginTop: 8, fontSize: 13 }}>
+        <Text style={{ color: '#E4E8CF', marginTop: 8, fontSize: 13 }}>
           {done === state.members.length ? 'Everyone has taken the quiz.' : 'Menus get better as more people take the quiz.'}
         </Text>
       </Card>

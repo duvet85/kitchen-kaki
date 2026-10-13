@@ -1,7 +1,6 @@
-import { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import {
-  PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
-} from '@expo-google-fonts/plus-jakarta-sans';
+  Nunito_400Regular, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black,
+} from '@expo-google-fonts/nunito';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +17,8 @@ import RatingsScreen from './src/screens/RatingsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { AiProvider } from './src/ai/AiProvider';
 import { AskKakiButton } from './src/screens/AskKaki';
+import Splash from './src/Splash';
+import { KakiBadge } from './src/Kaki';
 import { StateProvider, useApp } from './src/state';
 import { C, F, Icon, IconName, Text, useLayout } from './src/ui';
 
@@ -34,12 +35,20 @@ const TABS: { key: string; icon: IconName; iconOn: IconName; label: string; Scre
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold,
-    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+    Nunito_400Regular, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black,
     ...Ionicons.font,
   });
+  const [welcomed, setWelcomed] = useState(false);
   if (!fontsLoaded) {
     return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.brand} /></View>;
+  }
+  if (!welcomed) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <Splash onStart={() => setWelcomed(true)} />
+      </SafeAreaProvider>
+    );
   }
   return (
     <SafeAreaProvider>
@@ -73,9 +82,7 @@ function Shell() {
             <SafeAreaView edges={['top', 'bottom', 'left']} style={{ width: railWidth, backgroundColor: C.card, borderRightWidth: 1, borderColor: C.line }}>
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
               {!short && <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 22 }}>K</Text>
-                </View>
+                <KakiBadge size={56} />
                 <Text style={{ fontFamily: F.display, fontSize: 12, marginTop: 6, color: C.brandDeep }}>Kaki</Text>
               </View>}
               <View style={{ gap: short ? 0 : 6, paddingTop: 8 }}>
@@ -83,8 +90,8 @@ function Shell() {
                   const on = tab === t.key;
                   return (
                     <Pressable key={t.key} onPress={() => setTab(t.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={{ alignItems: 'center', gap: short ? 2 : 4, paddingVertical: short ? 4 : 8 }}>
-                      <View style={{ paddingHorizontal: short ? 16 : 20, paddingVertical: short ? 4 : 6, borderRadius: 16, backgroundColor: on ? C.brandSoft : 'transparent' }}>
-                        <Icon name={on ? t.iconOn : t.icon} size={short ? 21 : 24} color={on ? C.brand : C.faint} />
+                      <View style={{ paddingHorizontal: short ? 16 : 20, paddingVertical: short ? 4 : 6, borderRadius: 18, backgroundColor: on ? C.saffron : 'transparent' }}>
+                        <Icon name={on ? t.iconOn : t.icon} size={short ? 21 : 24} color={on ? C.brandDeep : C.faint} />
                       </View>
                       <Text style={{ fontSize: short ? 11 : 12, color: on ? C.brandDeep : C.faint, fontWeight: on ? '700' : '500' }}>{t.label}</Text>
                     </Pressable>
@@ -112,14 +119,14 @@ function Shell() {
               {showKaki && <AskKakiButton />}
           </View>
         </SafeAreaView>
-        <SafeAreaView edges={['bottom']} style={{ backgroundColor: C.card, borderTopWidth: 1, borderColor: C.line }}>
-          <View style={{ flexDirection: 'row', paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
+        <SafeAreaView edges={['bottom']} style={{ backgroundColor: C.card, borderTopWidth: 2, borderColor: C.line, borderTopLeftRadius: 26, borderTopRightRadius: 26 }}>
+          <View style={{ flexDirection: 'row', paddingHorizontal: 6, paddingTop: 8, paddingBottom: 4 }}>
             {tabs.map((t) => {
               const on = tab === t.key;
               return (
                 <Pressable key={t.key} onPress={() => setTab(t.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={{ flex: 1, alignItems: 'center', gap: 3 }}>
-                  <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 14, backgroundColor: on ? C.brandSoft : 'transparent' }}>
-                    <Icon name={on ? t.iconOn : t.icon} size={21} color={on ? C.brand : C.faint} />
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, backgroundColor: on ? C.saffron : 'transparent' }}>
+                    <Icon name={on ? t.iconOn : t.icon} size={21} color={on ? C.brandDeep : C.faint} />
                   </View>
                   <Text style={{ fontSize: 11, color: on ? C.brandDeep : C.faint, fontWeight: on ? '700' : '500' }}>{t.label}</Text>
                 </Pressable>

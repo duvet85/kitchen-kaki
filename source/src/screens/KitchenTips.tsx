@@ -175,7 +175,7 @@ export function RankCard({ lang, dark }: { lang: Lang; dark?: boolean }) {
   const pts = points(state);
   const r = rankOf(pts);
   const fg = dark ? '#FFFFFF' : C.ink;
-  const sub = dark ? '#D9E4F7' : C.muted;
+  const sub = dark ? '#E4E8CF' : C.muted;
   return (
     <View>
       <Row style={{ flexWrap: 'nowrap', gap: 12 }}>

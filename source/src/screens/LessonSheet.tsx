@@ -52,7 +52,7 @@ export function TimelineBars({ steps, start, trio }: { steps: LessonStep[]; star
   const span = 120 - from;
   const pct = (m: number) => `${((m - from) / span) * 100}%` as const;
   const bands = steps.filter((x) => !x.recipeId);
-  const COLORS: Record<Slot, string> = { soup: '#6C8FCB', slow: C.gold, wok: C.accent };
+  const COLORS: Record<Slot, string> = { soup: '#9AA64B', slow: C.gold, wok: C.accent };
   return (
     <View style={{ gap: 8 }}>
       {trio.map((r) => {

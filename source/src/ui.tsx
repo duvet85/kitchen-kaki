@@ -5,42 +5,48 @@ import {
 } from 'react-native';
 
 /*
- * Visual identity: Peranakan-tile blue, pink and chilli on a warm cream, so food photos look appetising.
- * Display: Bricolage Grotesque. Body: Plus Jakarta Sans (designed in Jakarta, reads well for helpers too).
+ * Visual identity (Kitchen Kaki brand): Vibrant Tomato, Sage Green, Honey Gold, Oat & Cream and Dark Basil.
+ * Dark Basil carries primary actions and text, because white on Sage Green is too faint to read.
+ * Everything is rounded: pill buttons, soft cards, friendly Nunito type.
  */
 export const C = {
-  bg: '#FFF7EC', // warm cream
+  bg: '#F7F2E4', // Oat & Cream
   card: '#FFFFFF',
-  ink: '#241810',
-  muted: '#6A5646',
-  faint: '#8F7B6A',
-  line: '#EEDFC9',
-  brand: '#2F5BA8', // Peranakan blue
-  brandDeep: '#1D3F7A',
-  brandSoft: '#DCE6F7',
-  accent: '#E2406F', // Peranakan pink, used for "new"
-  accentSoft: '#FFE0E8',
-  chilli: '#C93C20', // chilli red-orange: warm highlight (white text on it passes contrast)
-  chilliSoft: '#FFE4DA',
-  saffron: '#F6B100',
-  saffronSoft: '#FFF0C7',
-  gold: '#F0A800',
-  green: '#2A5AA0',
-  greenSoft: '#DCE7F8',
+  ink: '#2F4030', // Dark Basil
+  muted: '#5E6B54',
+  faint: '#66705B',
+  line: '#E8DFC8',
+  brand: '#2F4030', // Dark Basil: primary buttons, hero cards
+  brandDeep: '#1F2D22',
+  brandSoft: '#E4E8CF', // pale sage
+  accent: '#E05A33', // Vibrant Tomato, used for "new"
+  accentSoft: '#FDE3D8',
+  chilli: '#C94A25', // deeper tomato: white text on it passes contrast
+  chilliSoft: '#FDE4D9',
+  saffron: '#F5B93A', // Honey Gold
+  saffronSoft: '#FDF0CC',
+  gold: '#E0A21A',
+  sage: '#9AA64B', // Sage Green, for fills and decoration (not for small text)
+  green: '#6E7A3A', // darker sage that is readable as text
+  greenSoft: '#E9EDCF',
   red: '#B3261E',
   redSoft: '#FBE4E1',
   amber: '#9A5B00',
   amberSoft: '#FFEBC2',
 };
 
+/** Shared roundness, so every screen feels like the same soft, friendly app. */
+export const R = { card: 22, pill: 28, chip: 22, field: 18 };
+
+/** Nunito is the brand's rounded typeface. */
 export const F = {
-  display: 'BricolageGrotesque_700Bold',
-  displayX: 'BricolageGrotesque_800ExtraBold',
-  regular: 'PlusJakartaSans_400Regular',
-  medium: 'PlusJakartaSans_500Medium',
-  semi: 'PlusJakartaSans_600SemiBold',
-  bold: 'PlusJakartaSans_700Bold',
-  xbold: 'PlusJakartaSans_800ExtraBold',
+  display: 'Nunito_800ExtraBold',
+  displayX: 'Nunito_900Black',
+  regular: 'Nunito_400Regular',
+  medium: 'Nunito_500Medium',
+  semi: 'Nunito_600SemiBold',
+  bold: 'Nunito_700Bold',
+  xbold: 'Nunito_800ExtraBold',
 };
 
 const familyFor = (w?: TextStyle['fontWeight']) => {
@@ -101,7 +107,9 @@ export function Screen({ eyebrow, title, subtitle, children }: { eyebrow?: strin
 }
 
 export function Card({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[s.card, style]}>{children}</View>;
+  // a card with its own fill (hero cards) gets no contrasting outline
+  const own = style?.backgroundColor;
+  return <View style={[s.card, own ? { borderColor: own } : null, style]}>{children}</View>;
 }
 
 export function H2({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
@@ -120,7 +128,7 @@ export function Button({
   label, onPress, kind = 'primary', small, disabled, icon,
 }: { label: string; onPress: () => void; kind?: 'primary' | 'ghost' | 'danger' | 'quiet'; small?: boolean; disabled?: boolean; icon?: IconName }) {
   const palette = {
-    primary: [C.brand, '#FFFFFF'],
+    primary: [C.brand, '#F7F2E4'],
     ghost: [C.brandSoft, C.brandDeep],
     danger: [C.redSoft, C.red],
     quiet: ['transparent', C.brand],
@@ -134,11 +142,11 @@ export function Button({
       style={({ pressed }) => [
         s.btn,
         { backgroundColor: bg, opacity: disabled ? 0.45 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        small && { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+        small && { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 18 },
       ]}
     >
       {icon && <Icon name={icon} size={small ? 15 : 18} color={fg} />}
-      <Text style={{ color: fg, fontWeight: '700', fontSize: small ? 13 : 15 }}>{label}</Text>
+      <Text style={{ color: fg, fontWeight: '800', fontSize: small ? 13 : 16 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -153,7 +161,7 @@ export function IconButton({ icon, onPress, label }: { icon: IconName; onPress: 
 
 type Tone = 'plain' | 'good' | 'warn' | 'bad' | 'brand' | 'new';
 const TONES: Record<Tone, [string, string]> = {
-  plain: ['#F6EBDA', C.muted],
+  plain: ['#EFE7D2', C.muted],
   good: [C.greenSoft, C.green],
   warn: [C.amberSoft, C.amber],
   bad: [C.redSoft, C.red],
@@ -167,13 +175,13 @@ export function Chip({
   let [bg, fg] = TONES[tone];
   let border = bg;
   if (onPress) {
-    [bg, fg, border] = selected ? [C.brand, '#FFFFFF', C.brand] : [C.card, C.ink, C.line];
+    [bg, fg, border] = selected ? [C.brand, '#F7F2E4', C.brand] : [C.card, C.ink, C.line];
   }
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={[s.chip, { backgroundColor: bg, borderColor: border }, onPress && { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12 }]}
+      style={[s.chip, { backgroundColor: bg, borderColor: border }, onPress && { paddingVertical: 9, paddingHorizontal: 16, borderRadius: R.chip }]}
     >
       {icon && <Icon name={icon} size={12} color={fg} />}
       <Text style={{ color: fg, fontSize: onPress ? 14 : 12, fontWeight: '600' }}>{label}</Text>
@@ -187,7 +195,7 @@ export function Row({ children, style }: { children: React.ReactNode; style?: Vi
 
 /** Food tile: the dish's emoji on a soft tint, the app's stand-in for a photo. */
 const CUISINE_TINT: Record<string, string> = {
-  chinese: '#FFD9D2', malay: '#F3DDF0', indian: '#FFE8B8', peranakan: '#FFD9E3', western: '#D9E6F7', japanese: '#E9DBF5', korean: '#FFDCC8', thai: '#CFE4F2',
+  chinese: '#FFD9D2', malay: '#F3DDF0', indian: '#FFE8B8', peranakan: '#FFD9E3', western: '#E3EAD2', japanese: '#E9DBF5', korean: '#FFDCC8', thai: '#DDE8D0',
 };
 export function Thumb({ emoji, cuisine, size = 52 }: { emoji: string; cuisine?: string; size?: number }) {
   return (
@@ -197,7 +205,7 @@ export function Thumb({ emoji, cuisine, size = 52 }: { emoji: string; cuisine?: 
   );
 }
 
-const AVATAR = ['#2F5BA8', '#E2406F', '#9A5B00', '#8C4A2F', '#6B4FA0', '#B8501F'];
+const AVATAR = ['#2F4030', '#C94A25', '#9A5B00', '#6E7A3A', '#8C4A2F', '#B8501F'];
 export function Avatar({ name, index }: { name: string; index: number }) {
   return (
     <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: AVATAR[index % AVATAR.length], alignItems: 'center', justifyContent: 'center' }}>
@@ -234,7 +242,7 @@ export function Stepper({ value, onChange, min, max, format }: { value: number; 
     </Pressable>
   );
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#F6EBDA', borderRadius: 22, padding: 4 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#EFE7D2', borderRadius: 24, padding: 4 }}>
       {btn('remove', Math.max(min, value - 1), value <= min)}
       <Text style={{ minWidth: 84, textAlign: 'center', fontWeight: '700', fontSize: 15 }}>{format ? format(value) : value}</Text>
       {btn('add', Math.min(max, value + 1), value >= max)}
@@ -249,12 +257,12 @@ export const s = StyleSheet.create({
   h2: { fontSize: 17, fontFamily: F.display, color: C.ink, marginBottom: 4, letterSpacing: -0.2 },
   p: { fontSize: 14, color: C.ink, lineHeight: 21 },
   card: {
-    backgroundColor: C.card, borderRadius: 18, padding: 16, marginTop: 12,
-    shadowColor: '#3A2410', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    backgroundColor: C.card, borderRadius: R.card, padding: 16, marginTop: 12, borderWidth: 2, borderColor: C.line,
+    shadowColor: '#2F4030', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 1,
   },
-  btn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  btn: { borderRadius: R.pill, paddingVertical: 15, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: C.brandSoft },
-  chip: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  input: { borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, fontSize: 15, backgroundColor: C.card, color: C.ink, fontFamily: F.medium },
+  chip: { borderRadius: 12, paddingVertical: 3, paddingHorizontal: 9, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  input: { borderWidth: 2, borderColor: C.line, borderRadius: R.field, padding: 13, fontSize: 15, backgroundColor: C.card, color: C.ink, fontFamily: F.medium },
   label: { fontSize: 11, fontFamily: F.bold, color: C.muted, marginTop: 16, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1.2 },
 });
