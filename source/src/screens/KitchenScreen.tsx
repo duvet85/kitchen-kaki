@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, Share, TextInput, View } from 'react-native';
 import DishPhoto from '../DishPhoto';
 import { recipeById } from '../data/recipes';
-import { BADGES, RANKS, tk } from '../i18n-kitchen';
+import { BADGES, BadgeKey, RANKS, tk } from '../i18n-kitchen';
+import { BadgeMedal, RankMedal } from '../KakiMedal';
 import { LANGS } from '../i18n';
 import { overdueLessons, placeLesson, unplacedThisWeek } from '../engine/lesson';
 import {
@@ -12,7 +13,7 @@ import {
 import { DAY_NAMES, eligibleRecipes } from '../engine/planner';
 import { newId, useApp } from '../state';
 import { Lang, Lesson, Recipe } from '../types';
-import { Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, s, useLayout } from '../ui';
+import { Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
 import { Sheet } from './FamilyScreen';
 import { BadgeRow, FeedbackNote, FeedbackSheet, RankCard, shortDate } from './KitchenTips';
 import { LessonActions, LessonPlanner, LessonRow, LessonView, Stars, lessonDate } from './LessonSheet';
@@ -92,7 +93,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
         <Card key={`w-${r.id}`} style={{ backgroundColor: '#FFF6DC', shadowOpacity: 0 }}>
           <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
             <DishPhoto recipe={r} size={44} />
-            <Text style={{ flex: 1, fontWeight: '600', lineHeight: 20 }}>{Helper} feels confident cooking {r.name} ({state.confidence?.[r.id]}★). Agree she has mastered it?</Text>
+            <Text style={{ flex: 1, fontWeight: '600', lineHeight: 20 }}>{Helper} feels confident cooking {r.name} ({pots(state.confidence?.[r.id] ?? 0)}). Agree she has mastered it?</Text>
           </Row>
           <Row style={{ marginTop: 10 }}>
             <Button small icon="ribbon" label="Yes, she has" onPress={() => master(r.id, 'cooked')} />
@@ -118,7 +119,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
                     <Text style={{ fontFamily: F.display, fontSize: 15 }}>{r.name}</Text>
                     <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[dish.day]}{at ? ` · cooked ${shortDate(at)}` : ''}{dish.lesson ? ' · lesson' : ''}</Text>
                     <Row style={{ gap: 4 }}>
-                      {m ? <Chip tone="good" icon="ribbon" label="Mastered" /> : conf && conf >= 4 ? <Chip tone="brand" icon="star" label={`Confident ${conf}★`} /> : null}
+                      {m ? <Chip tone="good" icon="ribbon" label="Mastered" /> : conf && conf >= 4 ? <Chip tone="brand" icon="kaki-pot" label={`Confident ${pots(conf)}`} /> : null}
                       {(state.dishTweaks?.[r.id] ?? []).length > 0 && <Chip tone="warn" icon="bulb-outline" label="Has a tip" />}
                     </Row>
                   </View>
@@ -148,7 +149,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
           ))}
           <Card style={{ backgroundColor: C.brand }}>
             <Text style={{ fontFamily: F.display, fontSize: 17, color: '#fff' }}>Teach {helper} 3 dishes in 2 hours</Text>
-            <Text style={{ color: '#D9E4F7', marginTop: 4, lineHeight: 20 }}>A soup, a steamed or braised dish and a stir-fry that fit your family's food rules, with a 2-hour plan and the groceries. You, a relative or a cook you know can teach.</Text>
+            <Text style={{ color: '#E4E8CF', marginTop: 4, lineHeight: 20 }}>A soup, a steamed or braised dish and a stir-fry that fit your family's food rules, with a 2-hour plan and the groceries. You, a relative or a cook you know can teach.</Text>
             <View style={{ marginTop: 12, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="school-outline" label="Plan a lesson" onPress={() => setPlanning(true)} /></View>
           </Card>
           {past.map((l) => <LessonRow key={l.id} lesson={l} lang="en" onOpen={() => setViewing(l)} />)}
@@ -273,11 +274,21 @@ function RecognitionSettings({ onClose }: { onClose: () => void }) {
       </Card>
       <Label>Ranks</Label>
       <Card style={{ marginTop: 0, gap: 4 }}>
-        {RANKS.map((r) => <Text key={r.from}><Text style={{ fontWeight: '700' }}>{r.name.en}</Text> · from {r.from} · {r.meaning}</Text>)}
+        {RANKS.map((r, i) => (
+          <Row key={r.from} style={{ flexWrap: 'nowrap', gap: 10, paddingVertical: 4 }}>
+            <RankMedal index={i} size={40} />
+            <Text style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>{r.name.en}</Text> · from {r.from} · {r.meaning}</Text>
+          </Row>
+        ))}
       </Card>
       <Label>Badges</Label>
       <Card style={{ marginTop: 0, gap: 4 }}>
-        {Object.values(BADGES).map((b) => <Text key={b.name.en}>{b.icon} <Text style={{ fontWeight: '700' }}>{b.name.en}</Text> · {b.how}</Text>)}
+        {(Object.keys(BADGES) as BadgeKey[]).map((k) => (
+          <Row key={k} style={{ flexWrap: 'nowrap', gap: 10, paddingVertical: 4 }}>
+            <BadgeMedal kind={k} size={40} />
+            <Text style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>{BADGES[k].name.en}</Text> · {BADGES[k].how}</Text>
+          </Row>
+        ))}
       </Card>
       <View style={{ marginTop: 18, gap: 8 }}>
         <Button icon="ribbon" label={rec.on ? 'Save' : 'Turn on ranks and badges'} disabled={!name.trim()} onPress={() => save(true)} />
@@ -316,7 +327,7 @@ function HelperKitchen({ preview }: { preview?: () => void }) {
       )}
       {celebrate.map((c) => (
         <Card key={c.key} style={{ backgroundColor: '#FFF6DC', shadowOpacity: 0 }}>
-          <Text style={{ fontSize: 30 }}>{c.badge ? BADGES[c.badge].icon : '🎉'}</Text>
+          {c.badge ? <BadgeMedal kind={c.badge} size={72} /> : <RankMedal index={c.rank!} size={72} />}
           <Text style={{ fontFamily: F.display, fontSize: 18, marginTop: 4 }}>
             {c.badge ? tk('newBadge', lang, { badge: BADGES[c.badge].name[lang] }) : tk('nowRank', lang, { rank: RANKS[c.rank!].name[lang] })}
           </Text>
@@ -368,9 +379,9 @@ function HelperKitchen({ preview }: { preview?: () => void }) {
                         {lang !== 'en' && nm(r) !== r.name && <Text style={{ color: C.muted, fontSize: 12 }}>{r.name}</Text>}
                       </View>
                       {mastered.has(r.id) ? <Chip tone="good" icon="ribbon" label={tk('mastered', lang)} />
-                        : conf && conf >= 4 ? <Chip tone="brand" icon="star" label={tk('confident', lang)} />
+                        : conf && conf >= 4 ? <Chip tone="brand" icon="kaki-pot" label={tk('confident', lang)} />
                           : conf ? <Chip tone="plain" label={tk('practise', lang)} />
-                            : <Chip tone="plain" icon="star-outline" label={tk('rateDishes', lang)} />}
+                            : <Chip tone="plain" icon="kaki-pot-off" label={tk('rateDishes', lang)} />}
                     </Row>
                   </Pressable>
                   {rating === r.id && (

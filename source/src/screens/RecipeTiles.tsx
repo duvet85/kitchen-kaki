@@ -11,7 +11,7 @@ import { CollectionTools, NewCategory } from './Categories';
 
 const GAP = 8;
 /** Category bars take turns in blue, chilli, saffron-brown and pink (white text passes contrast on all four). */
-const BARS = ['rgba(47,91,168,0.93)', 'rgba(201,60,32,0.93)', 'rgba(154,91,0,0.94)', 'rgba(194,58,102,0.93)'];
+const BARS = ['rgba(47,64,48,0.93)', 'rgba(201,74,37,0.93)', 'rgba(92,104,48,0.93)', 'rgba(154,91,0,0.94)'];
 
 /** Measures its own width and lays square tiles out 3 across (2 when very narrow). */
 function TileGrid({ children }: { children: (size: number) => React.ReactNode[] }) {
@@ -27,7 +27,7 @@ function TileGrid({ children }: { children: (size: number) => React.ReactNode[] 
 
 function Tile({ recipe, size, label, count, heart, onPress, a11y, bar = 0 }: { recipe: Recipe; size: number; label: string; count?: number; heart?: boolean; onPress: () => void; a11y: string; bar?: number }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y} style={{ width: size, height: size, borderRadius: 14, overflow: 'hidden', backgroundColor: C.brandSoft }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y} style={{ width: size, height: size, borderRadius: 20, overflow: 'hidden', backgroundColor: C.brandSoft }}>
       <DishPhoto recipe={recipe} banner height={size} style={{ marginBottom: 0, borderRadius: 0 }} placeholder={false} />
       <CoverFallback recipe={recipe} size={size} />
       {heart && <View style={{ position: 'absolute', top: 6, right: 6 }}><Icon name="heart" size={16} color="#fff" /></View>}
@@ -42,7 +42,7 @@ function Tile({ recipe, size, label, count, heart, onPress, a11y, bar = 0 }: { r
 /** A category with nothing in it yet: its picture on a plain tile. */
 function EmptyTile({ group, size, bar, onPress }: { group: Group; size: number; bar: number; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${group.title}, no recipes yet`} style={{ width: size, height: size, borderRadius: 14, overflow: 'hidden', backgroundColor: C.brandSoft }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${group.title}, no recipes yet`} style={{ width: size, height: size, borderRadius: 20, overflow: 'hidden', backgroundColor: C.brandSoft }}>
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingBottom: 18 }}>
         <Text style={{ fontSize: size * 0.34 }}>{group.emoji}</Text>
       </View>

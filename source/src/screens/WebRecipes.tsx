@@ -65,7 +65,7 @@ export default function WebRecipes() {
       </Text>
 
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13 }}>{list.length ? `${list.length} recipe${list.length === 1 ? '' : 's'} taken from websites` : 'No recipes taken from websites.'}</Text>
+        <Text style={{ fontFamily: 'Nunito_700Bold', fontSize: 13 }}>{list.length ? `${list.length} recipe${list.length === 1 ? '' : 's'} taken from websites` : 'No recipes taken from websites.'}</Text>
         {list.map((r) => (
           <Row key={r.id} style={{ flexWrap: 'nowrap', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderColor: C.line }}>
             <Text style={{ flex: 1 }}>{r.emoji} {r.name}</Text>

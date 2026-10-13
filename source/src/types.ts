@@ -242,6 +242,8 @@ export interface KitchenEvent {
   note?: string;
   noteTr?: Partial<Record<Lang, string>>;
   by?: string;
+  /** thanks and tips: a Kitchen Kaki sticker the family added (see KakiScenes) */
+  sticker?: string;
   /** tips: the helper tapped "Got it" */
   seen?: boolean;
   /** removed by the owner: no points, hidden from the helper */

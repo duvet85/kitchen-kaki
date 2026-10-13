@@ -255,9 +255,9 @@ function Shopping({ lang }: { lang: Lang }) {
   return (
     <>
       <Card style={{ backgroundColor: C.brand, ...(isTablet ? { maxWidth: 520 } : {}) }}>
-        <Text style={{ color: '#BCD0F0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>{t('estTotal', lang).toUpperCase()}</Text>
+        <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>{t('estTotal', lang).toUpperCase()}</Text>
         <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 30, letterSpacing: -1 }}>{ballpark(total)}</Text>
-        <Text style={{ color: '#D9E4F7', fontSize: 13, marginBottom: 6 }}>{boughtCount}/{toGet} {t('bought', lang)}</Text>
+        <Text style={{ color: '#E4E8CF', fontSize: 13, marginBottom: 6 }}>{boughtCount}/{toGet} {t('bought', lang)}</Text>
         <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)', marginBottom: 12, overflow: 'hidden' }}>
           <View style={{ width: `${toGet ? (boughtCount / toGet) * 100 : 0}%`, height: '100%', backgroundColor: '#fff' }} />
         </View>

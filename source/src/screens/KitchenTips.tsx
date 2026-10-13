@@ -10,6 +10,8 @@ import { newId, useApp } from '../state';
 import { translateViaFamily } from '../sync/family';
 import { KitchenEvent, Lang, Recipe, TipTag } from '../types';
 import { Bar, Button, C, Card, Chip, F, Icon, Label, Notice, Row, Text, s } from '../ui';
+import { BadgeMedal, RankMedal } from '../KakiMedal';
+import { KakiSticker, StickerKey, isSticker, randomSticker } from '../KakiScenes';
 import { Sheet } from './FamilyScreen';
 
 const dishName = (r: Recipe, lang: Lang) => (lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name);
@@ -57,6 +59,7 @@ export function FeedbackNote({ e, lang, onGotIt, onRemove }: { e: KitchenEvent; 
           {isTip && <Text style={{ fontWeight: '700', color: C.amber, marginTop: 2 }}>{tk('tipNext', shown)}</Text>}
           {tips.map((x) => <Text key={x} style={{ lineHeight: 20 }}>• {TIP_TEXT[x][shown]}</Text>)}
           {txt.note ? <Text style={{ lineHeight: 20, fontStyle: 'italic' }}>“{txt.note}”</Text> : null}
+          {isSticker(e.sticker) ? <View style={{ alignSelf: 'flex-start', marginVertical: 6 }}><KakiSticker id={e.sticker} size={92} /></View> : null}
           <Text style={{ color: C.faint, fontSize: 12 }}>{e.by ? `${tk('from', shown, { who: e.by })} · ` : ''}{shortDate(e.at)}</Text>
           <Row style={{ gap: 12, marginTop: 2 }}>
             {lang !== 'en' && (
@@ -87,6 +90,7 @@ export function FeedbackSheet({ recipe: r, mode, onClose }: { recipe?: Recipe; m
   const [tags, setTags] = useState<TipTag[]>(mode === 'thanks' ? ['delicious'] : ['thanks']);
   const [note, setNote] = useState('');
   const [remember, setRemember] = useState(true);
+  const [sticker, setSticker] = useState<StickerKey | null>(null);
   const [busy, setBusy] = useState(false);
   const lang = state.settings.helperLang;
   const langName = LANGS.find((l) => l.key === lang)?.label ?? '';
@@ -110,12 +114,12 @@ export function FeedbackSheet({ recipe: r, mode, onClose }: { recipe?: Recipe; m
         if (tr.steps[0]) noteTr = { [lang]: tr.steps[0] };
       } catch { /* she sees the English note */ }
     }
-    update((st) => sendFeedback(st, { recipeId: r?.id, tags, note: text || undefined, noteTr, by: family?.myName || 'The family', remember }, newId));
+    update((st) => sendFeedback(st, { recipeId: r?.id, tags, note: text || undefined, noteTr, by: family?.myName || 'The family', remember, sticker: sticker ?? undefined }, newId));
     setBusy(false);
     onClose();
   };
 
-  const preview: KitchenEvent = { id: 'preview', at: new Date().toISOString(), helper, kind: fixes.length ? 'tip' : 'thanks', recipeId: r?.id, tags, note: note.trim() || undefined, by: family?.myName || 'The family' };
+  const preview: KitchenEvent = { id: 'preview', at: new Date().toISOString(), helper, kind: fixes.length ? 'tip' : 'thanks', recipeId: r?.id, tags, note: note.trim() || undefined, by: family?.myName || 'The family', sticker: sticker ?? undefined };
 
   return (
     <Sheet title={mode === 'thanks' ? (r ? `Thank ${helper} for ${r.name}` : `Thank ${helper}`) : `Tip for next time: ${r?.name ?? ''}`} onClose={onClose}>
@@ -140,6 +144,18 @@ export function FeedbackSheet({ recipe: r, mode, onClose }: { recipe?: Recipe; m
           {gemini ? `Your note is translated into ${langName} by Gemini (only the note is sent). The quick phrases above are already translated.` : `Gemini is off, so your note arrives in English. The quick phrases above are already in ${langName}.`}
         </Text>
       ) : null}
+      <Label>A sticker (optional)</Label>
+      {sticker ? (
+        <Row style={{ gap: 14, alignItems: 'center' }}>
+          <KakiSticker id={sticker} size={96} />
+          <View style={{ gap: 8 }}>
+            <Button small kind="ghost" icon="shuffle" label="Another one" onPress={() => setSticker(randomSticker(sticker))} />
+            <Button small kind="quiet" icon="close" label="No sticker" onPress={() => setSticker(null)} />
+          </View>
+        </Row>
+      ) : (
+        <Row><Chip icon="sparkles" label="Add a surprise sticker" onPress={() => setSticker(randomSticker())} /></Row>
+      )}
       {fixes.length > 0 && r && (
         <>
           <Label>Remember it</Label>
@@ -175,13 +191,11 @@ export function RankCard({ lang, dark }: { lang: Lang; dark?: boolean }) {
   const pts = points(state);
   const r = rankOf(pts);
   const fg = dark ? '#FFFFFF' : C.ink;
-  const sub = dark ? '#D9E4F7' : C.muted;
+  const sub = dark ? '#E4E8CF' : C.muted;
   return (
     <View>
       <Row style={{ flexWrap: 'nowrap', gap: 12 }}>
-        <View style={{ width: 52, height: 52, borderRadius: 18, backgroundColor: dark ? 'rgba(255,255,255,0.16)' : C.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 26 }}>{['🥄', '🍳', '🔪', '🥘', '👩‍🍳'][r.index]}</Text>
-        </View>
+        <RankMedal index={r.index} size={64} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: F.displayX, fontSize: 22, color: fg }}>{r.rank.name[lang]}</Text>
           {lang !== 'en' && <Text style={{ color: sub, fontSize: 12 }}>{r.rank.name.en}</Text>}
@@ -197,17 +211,15 @@ export function RankCard({ lang, dark }: { lang: Lang; dark?: boolean }) {
 export function BadgeRow({ keys, lang, all }: { keys: BadgeKey[]; lang: Lang; all?: boolean }) {
   const list = all ? (Object.keys(BADGES) as BadgeKey[]) : keys;
   return (
-    <Row style={{ gap: 8 }}>
+    <Row style={{ gap: 14, alignItems: 'flex-start' }}>
       {list.map((k) => {
         const got = keys.includes(k);
         return (
-          <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: got ? '#FFF6DC' : '#F6EBDA', opacity: got ? 1 : 0.55 }}
+          <View key={k} style={{ width: 92, alignItems: 'center', gap: 6 }}
             accessibilityLabel={`${BADGES[k].name.en}${got ? '' : ' (not yet)'}: ${BADGES[k].how}`}>
-            <Text style={{ fontSize: 16 }}>{BADGES[k].icon}</Text>
-            <View>
-              <Text style={{ fontWeight: '700', fontSize: 13 }}>{BADGES[k].name[lang]}</Text>
-              {all && <Text style={{ color: C.muted, fontSize: 11 }}>{BADGES[k].how}</Text>}
-            </View>
+            <BadgeMedal kind={k} earned={got} size={60} />
+            <Text style={{ fontWeight: '700', fontSize: 12.5, textAlign: 'center', lineHeight: 16, color: got ? C.ink : C.muted }}>{BADGES[k].name[lang]}</Text>
+            {all && <Text style={{ color: C.muted, fontSize: 11, textAlign: 'center', lineHeight: 14 }}>{BADGES[k].how}</Text>}
           </View>
         );
       })}

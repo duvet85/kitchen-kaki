@@ -126,9 +126,9 @@ export const setConfidence = (st: AppState, recipeId: string, n: number): AppSta
  * Thanks and tips about a dish (or general thanks, without a dish). The helper reads it in her language.
  * "Remember" keeps the tips on the dish so she sees them each time she cooks it; a new tip replaces its opposite.
  */
-export function sendFeedback(st: AppState, f: { recipeId?: string; tags: TipTag[]; note?: string; noteTr?: Partial<Record<Lang, string>>; by?: string; remember?: boolean }, newId: () => string): AppState {
+export function sendFeedback(st: AppState, f: { recipeId?: string; tags: TipTag[]; note?: string; noteTr?: Partial<Record<Lang, string>>; by?: string; remember?: boolean; sticker?: string }, newId: () => string): AppState {
   const fixes = f.tags.filter((x) => !isPraise(x));
-  let next = push(st, { id: newId(), kind: fixes.length ? 'tip' : 'thanks', recipeId: f.recipeId, tags: f.tags, note: f.note, noteTr: f.noteTr, by: f.by });
+  let next = push(st, { id: newId(), kind: fixes.length ? 'tip' : 'thanks', recipeId: f.recipeId, tags: f.tags, note: f.note, noteTr: f.noteTr, by: f.by, sticker: f.sticker });
   if (f.recipeId && f.remember && fixes.length) {
     const old = (next.dishTweaks?.[f.recipeId] ?? []).filter((x) => !fixes.some((n) => OPPOSITE[n] === x));
     next = { ...next, dishTweaks: { ...(next.dishTweaks ?? {}), [f.recipeId]: [...new Set([...old, ...fixes])] } };

@@ -1,5 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useRef, useState } from 'react';
+import KakiIntro from '../KakiIntro';
+import { KakiBadge } from '../Kaki';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAi } from '../ai/AiProvider';
 import { kakiMessage, understandMessage } from '../ai/gemini';
@@ -31,6 +34,8 @@ type Msg =
   | { id: string; who: 'kplan'; plan: KakiPlan; status: 'open' | 'applied' | 'dismissed' }
   | { id: string; who: 'add'; ask: Ask; day: number | null; status: 'open' | 'done' | 'dismissed' };
 
+const INTRO_KEY = 'kitchenKaki.askKakiIntroSeen';
+
 const scopeText = (a: Ask) => (a.day != null ? dayName(a.day) : a.scope === 'today' ? 'today' : a.scope === 'tomorrow' ? 'tomorrow' : a.scope === 'rest' ? 'the rest of the week' : null);
 
 /** Floating button that opens the chat. */
@@ -41,11 +46,11 @@ export function AskKakiButton() {
       <Pressable onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Ask Kitchen Kaki"
         style={({ pressed }) => ({
           position: 'absolute', right: 16, bottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8,
-          backgroundColor: pressed ? C.brandDeep : C.brand, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28,
-          shadowColor: '#3A2410', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+          backgroundColor: pressed ? C.gold : C.saffron, paddingLeft: 12, paddingRight: 18, paddingVertical: 9, borderRadius: 30,
+          shadowColor: '#2F4030', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6,
         })}>
-        <Icon name="chatbubble-ellipses" size={20} color="#fff" />
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Ask Kaki</Text>
+        <KakiBadge size={38} />
+        <Text style={{ color: C.brandDeep, fontWeight: '800' }}>Ask Kaki</Text>
       </Pressable>
       {open && <AskKaki onClose={() => setOpen(false)} />}
     </>
@@ -57,12 +62,14 @@ function AskKaki({ onClose }: { onClose: () => void }) {
   const gate = useTripGate(state);
   const ai = useAi();
   const canGemini = !!family || !!(ai.key && ai.model);
-  const [msgs, setMsgs] = useState<Msg[]>([{
-    id: 'hello', who: 'kaki',
-    text: state.plan
-      ? `Hey ${family?.myName || 'kaki'}! 👋 Something come up? Tell me what's changed and I'll rework this week's menu, using what's already in the kitchen where I can.`
-      : `Hey ${family?.myName || 'kaki'}! 👋 Make a weekly menu on the Menu tab first, then I can help when plans change.`,
-  }]);
+  // Kaki's hello and the how-to guide are shown by <KakiIntro/>; the guide appears automatically the first time only
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [tips, setTips] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(INTRO_KEY).then((seen) => {
+      if (!seen) { setTips(true); AsyncStorage.setItem(INTRO_KEY, '1').catch(() => {}); }
+    }).catch(() => {});
+  }, []);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const scroll = useRef<ScrollView>(null);
@@ -180,7 +187,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={{ flex: 1, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
             <Row style={{ paddingHorizontal: 16, paddingVertical: 10, flexWrap: 'nowrap', gap: 12, borderBottomWidth: 1, borderColor: C.line }}>
-              <Image source={require('../../assets/logo.png')} style={{ width: 42, height: 42 }} accessibilityIgnoresInvertColors />
+              <KakiBadge size={46} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: F.display, fontSize: 18 }}>Kitchen Kaki</Text>
                 <Text style={{ color: C.muted, fontSize: 12 }}>Your kitchen buddy for last-minute changes</Text>
@@ -189,6 +196,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
             </Row>
 
             <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 10 }}>
+              <KakiIntro hasPlan={!!state.plan} tips={tips} onShowTips={() => setTips(true)} />
               {msgs.map((m) => {
                 if (m.who === 'me' || m.who === 'kaki') return <Bubble key={m.id} me={m.who === 'me'} text={m.text} />;
                 if (m.who === 'kplan') return <KakiCard key={m.id} m={m} onApply={() => applyPlan(m)} onDismiss={() => setMsgs((x) => x.map((y) => (y.id === m.id ? { ...m, status: 'dismissed' } : y)))} />;

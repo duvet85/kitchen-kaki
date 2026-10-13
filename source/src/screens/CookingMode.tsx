@@ -70,7 +70,7 @@ export function TimerTray({ lang, now }: { lang: Lang; now: number }) {
             <Icon name={up ? 'alarm' : 'timer-outline'} size={26} color="#fff" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 26, letterSpacing: -0.5 }}>{up ? t('timesUp', lang) : fmtClock(left)}</Text>
-              <Text style={{ color: '#E8EFFA', fontSize: 12 }} numberOfLines={1}>{tm.label}</Text>
+              <Text style={{ color: '#EEF1DC', fontSize: 12 }} numberOfLines={1}>{tm.label}</Text>
               {!up && <View style={{ marginTop: 6 }}><Bar value={1 - left / tm.totalSec} color="#fff" height={4} /></View>}
             </View>
             {!up && (

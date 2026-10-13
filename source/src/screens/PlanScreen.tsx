@@ -12,7 +12,7 @@ import DishPhoto from '../DishPhoto';
 import { photoFor } from '../data/photos';
 import { AppState, PlannedDish, Recipe } from '../types';
 import {
-  Bar, Button, C, Card, Chip, F, Grid, H2, Icon, IconButton, Label, Notice, P, Row, Screen, Stepper, Text, Thumb, chillies, useLayout,
+  Bar, Button, C, Card, Chip, F, Grid, H2, Icon, IconButton, Label, Notice, P, Row, Screen, Stepper, Text, Thumb, chillies, pots, useLayout,
 } from '../ui';
 import { cap } from './FamilyScreen';
 import { DishDetail, DishPicker } from './DishSheets';
@@ -85,11 +85,11 @@ export default function PlanScreen() {
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#BCD0F0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · FROM {fmtDate(plan.weekOf).toUpperCase()}</Text>
+              <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · FROM {fmtDate(plan.weekOf).toUpperCase()}</Text>
               <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 32, marginTop: 4, letterSpacing: -1 }}>{ballpark(cost.fresh)}</Text>
-              <Text style={{ color: '#D9E4F7', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
+              <Text style={{ color: '#E4E8CF', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
             </View>
-            <View style={{ backgroundColor: plan.status === 'draft' ? '#FFF0D2' : '#DCE7F8', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+            <View style={{ backgroundColor: plan.status === 'draft' ? '#FFF0D2' : '#E9EDCF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
               <Icon name={plan.status === 'draft' ? 'eye-off-outline' : 'checkmark-circle'} size={13} color={plan.status === 'draft' ? C.amber : C.green} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: plan.status === 'draft' ? C.amber : C.green }}>{plan.status === 'draft' ? 'Draft' : 'Sent'}</Text>
             </View>
@@ -106,13 +106,13 @@ export default function PlanScreen() {
             return (
               <View>
                 <Row style={{ marginTop: 12, gap: 6 }}>
-                  <Icon name="cart-outline" size={15} color="#D9E4F7" />
-                  <Text style={{ color: '#D9E4F7', fontSize: 13, fontWeight: '600' }}>Shopping: {got} of {total} ticked off</Text>
+                  <Icon name="cart-outline" size={15} color="#E4E8CF" />
+                  <Text style={{ color: '#E4E8CF', fontSize: 13, fontWeight: '600' }}>Shopping: {got} of {total} ticked off</Text>
                 </Row>
                 {(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).length > 0 && (
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>New to buy after the change</Text>
-                    <Text style={{ color: '#D9E4F7', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
+                    <Text style={{ color: '#E4E8CF', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
                     {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your helper needs to go to the shop again.</Text>}
                   </View>
                 )}
@@ -120,18 +120,18 @@ export default function PlanScreen() {
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Not in the shop</Text>
                     {swaps.map(([item, s]) => (
-                      <Text key={item} style={{ color: '#D9E4F7', fontSize: 13 }}>
+                      <Text key={item} style={{ color: '#E4E8CF', fontSize: 13 }}>
                         {CATALOGUE[item]?.name ?? item}: {s.to ? `bought ${s.to} instead` : 'skipped'}{s.by ? ` (${s.by})` : ''}
                       </Text>
                     ))}
-                    {swaps.some(([, s]) => s.to === null) && <Text style={{ color: '#BCD0F0', fontSize: 12, marginTop: 2 }}>Ask Kaki can change a dish that needs a skipped item.</Text>}
+                    {swaps.some(([, s]) => s.to === null) && <Text style={{ color: '#C9D3A0', fontSize: 12, marginTop: 2 }}>Ask Kaki can change a dish that needs a skipped item.</Text>}
                   </View>
                 )}
               </View>
             );
           })()}
           {settings.weeklyBudget > 0 && (
-            <Text style={{ marginTop: 12, color: overBudget ? '#FFD9D4' : '#D9E4F7', fontWeight: '600', fontSize: 13 }}>
+            <Text style={{ marginTop: 12, color: overBudget ? '#FFD9D4' : '#E4E8CF', fontWeight: '600', fontSize: 13 }}>
               {overBudget
                 ? `Likely over your $${settings.weeklyBudget} budget. Swap a pricey dish.`
                 : cost.fresh * 1.15 > settings.weeklyBudget ? `Close to your $${settings.weeklyBudget} budget.` : `Likely within your $${settings.weeklyBudget} budget.`}
@@ -196,7 +196,7 @@ export default function PlanScreen() {
             {showExcluded && (
               <View style={{ marginTop: 8, gap: 4 }}>
                 {excluded.map((e) => <Text key={e.recipe.id} style={{ color: C.muted, fontSize: 13 }}>{e.recipe.name}: {e.reasons.join('; ')}</Text>)}
-                {dropped.map((r) => <Text key={r.id} style={{ color: C.muted, fontSize: 13 }}>{r.name}: family rated it {state.ratings[r.id]}★</Text>)}
+                {dropped.map((r) => <Text key={r.id} style={{ color: C.muted, fontSize: 13 }}>{r.name}: family rated it {pots(state.ratings[r.id])}</Text>)}
               </View>
             )}
           </Card>
@@ -229,7 +229,7 @@ export default function PlanScreen() {
                 </Row>
                 {(() => {
                   const gap = missingFavourite(plan, state, day);
-                  return gap.length ? <Notice tone="warn" icon="heart-dislike-outline">No 4★ dish for {gap.map((m) => m.name).join(', ')} today. Swap or add one they'd love.</Notice> : null;
+                  return gap.length ? <Notice tone="warn" icon="heart-dislike-outline">No 4-pot dish for {gap.map((m) => m.name).join(', ')} today. Swap or add one they'd love.</Notice> : null;
                 })()}
                 {(() => {
                   const gap = dishes.every((d) => isCooked(plan, d)) ? null : vegGap(state, day);
@@ -276,7 +276,7 @@ export default function PlanScreen() {
                 </Row>
                 <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the Helper tab.</P>
                 <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your helper is told, and anything new to buy is marked NEW on their list.</Notice>
-                {unrated > 0 && <Notice tone="warn" icon="star-outline">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
+                {unrated > 0 && <Notice tone="warn" icon="kaki-pot-off">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
                 <Button icon="arrow-forward" label={`Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
               </View>
             )}
@@ -291,7 +291,7 @@ function Stat({ value, label }: { value: number; label: string }) {
   return (
     <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, flexGrow: 1 }}>
       <Text style={{ color: '#fff', fontFamily: F.display, fontSize: 20 }}>{value}</Text>
-      <Text style={{ color: '#D9E4F7', fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: '#E4E8CF', fontSize: 12 }}>{label}</Text>
     </View>
   );
 }
@@ -354,7 +354,7 @@ function FamilyMenuCard({ progress: p, newPerDay, plan }: { progress: ReturnType
         <Chip tone={p.settled ? 'good' : 'new'} icon={p.settled ? 'checkmark' : 'compass-outline'} label={p.settled ? 'Settled' : 'Discovering'} />
       </Row>
       <View style={{ marginTop: 12 }}><Bar value={p.target ? have / p.target : 1} color={p.settled ? C.green : C.accent} height={10} /></View>
-      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{have} of {p.target} favourites found (dishes rated 4★ or 5★)</Text>
+      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{have} of {p.target} favourites found (dishes rated 4 or 5 pots)</Text>
       <P style={{ marginTop: 10 }}>
         {p.favourites.length === 0
           ? `Everything is new at the start, so ${counts.label.toLowerCase()} is ${counts.isNew} new dishes. Rate them after you eat and the ones you like become favourites.`
@@ -391,7 +391,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
           <Row style={{ marginTop: 6 }}>
             {isSoup(r) && <Chip tone="brand" icon="water-outline" label="Soup" />}
             {dish.added && <Chip tone="plain" icon="add" label="Added" />}
-            <Chip tone={dish.isNew ? 'new' : rating && rating < FAVOURITE_FROM ? 'plain' : 'good'} icon={dish.isNew ? 'sparkles' : rating && rating < FAVOURITE_FROM ? 'remove' : 'heart'} label={dish.isNew ? 'New' : rating && rating < FAVOURITE_FROM ? `Kept ${rating}★` : `Favourite${rating ? ` ${rating}★` : ''}`} />
+            <Chip tone={dish.isNew ? 'new' : rating && rating < FAVOURITE_FROM ? 'plain' : 'good'} icon={dish.isNew ? 'sparkles' : rating && rating < FAVOURITE_FROM ? 'remove' : 'heart'} label={dish.isNew ? 'New' : rating && rating < FAVOURITE_FROM ? `Kept ${pots(rating)}` : `Favourite${rating ? ` ${pots(rating)}` : ''}`} />
             {r.vegetarian && <Chip tone="good" icon="leaf" label="Vegetarian" />}
             {r.pork && <Chip tone="warn" label="Pork" />}
             {r.beef && <Chip tone="warn" label="Beef" />}
@@ -405,7 +405,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
       </Row>
       {(() => {
         const fans = lovedBy(r, state);
-        return fans.length ? <Text style={{ color: C.green, fontSize: 12, marginTop: 8, fontWeight: '600' }}>♥ 4★+ for {fans.map((m) => m.name).join(', ')}</Text> : null;
+        return fans.length ? <Text style={{ color: C.green, fontSize: 12, marginTop: 8, fontWeight: '600' }}>♥ 4+ pots for {fans.map((m) => m.name).join(', ')}</Text> : null;
       })()}
       {vegOnly.length > 0 && <Notice tone="brand" icon="leaf-outline">Not for {vegOnly.map((m) => m.name).join(', ')} (vegetarian)</Notice>}
       {warnings.map(({ m, flags }) => (
