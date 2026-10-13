@@ -41,11 +41,11 @@ function Sparkle({ x, y, size, delay, color = '#FFFFFF' }: { x: number; y: numbe
   }, [v, delay]);
   return (
     <Animated.View pointerEvents="none" style={{
-      position: 'absolute', left: `${x}%`, top: `${y}%`, opacity: v,
+      position: 'absolute', left: `${x}%`, top: `${y}%`, width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2, opacity: v,
       transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] }) }],
     }}>
-      <View style={{ width: size, height: size / 4, borderRadius: size / 8, backgroundColor: color, position: 'absolute', top: size * 0.375 }} />
-      <View style={{ width: size / 4, height: size, borderRadius: size / 8, backgroundColor: color, position: 'absolute', left: size * 0.375 }} />
+      <View style={{ width: size, height: size / 7, borderRadius: size / 14, backgroundColor: color, position: 'absolute', top: size * 0.43 }} />
+      <View style={{ width: size / 7, height: size, borderRadius: size / 14, backgroundColor: color, position: 'absolute', left: size * 0.43 }} />
     </Animated.View>
   );
 }
@@ -114,11 +114,12 @@ export default function Splash({ onStart }: { onStart: () => void }) {
             transform: [{ translateY: gather.interpolate({ inputRange: [0, 1], outputRange: [70 * k * 2, 0] }) }],
           }}
         />
-        <Sparkle x={14} y={3.5} size={18} delay={0} />
-        <Sparkle x={76} y={4.5} size={20} delay={800} />
-        <Sparkle x={5} y={60} size={24} delay={1400} />
-        <Sparkle x={88} y={61} size={24} delay={400} />
-        <Sparkle x={86} y={45} size={16} delay={2000} color={C.saffron} />
+        <Sparkle x={17.5} y={5.6} size={30} delay={0} />
+        <Sparkle x={78.6} y={6.7} size={34} delay={800} />
+        <Sparkle x={8} y={61.5} size={38} delay={1400} />
+        <Sparkle x={90} y={61.5} size={38} delay={400} />
+        <Sparkle x={12.7} y={57} size={22} delay={1100} />
+        <Sparkle x={86.5} y={45} size={26} delay={2000} color={C.saffron} />
         <Bubble x={52} y={37} size={9} delay={0} />
         <Bubble x={56} y={38} size={7} delay={700} />
         <Bubble x={49} y={38} size={6} delay={1400} />
