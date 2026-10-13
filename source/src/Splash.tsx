@@ -140,7 +140,8 @@ export default function Splash({ onStart }: { onStart: () => void }) {
         <Bubble x={52.3} y={38.6} size={8} delay={1800} rise={20} />
       </View>
 
-      <View style={{ position: 'absolute', left: 32, right: 32, bottom: 40, alignItems: 'center', gap: 20, maxWidth: 520 }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40, paddingHorizontal: 32, alignItems: 'center' }}>
+        <View style={{ width: '100%', maxWidth: 520, alignItems: 'center', gap: 20 }}>
         <Animated.View style={tagline}>
           <Text style={{ fontFamily: F.semi, fontSize: 17, lineHeight: 24, textAlign: 'center' }}>Your Smart Recipe Planner{'\n'}& Kitchen Companion</Text>
         </Animated.View>
@@ -149,6 +150,7 @@ export default function Splash({ onStart }: { onStart: () => void }) {
             <Text style={{ color: '#F7F2E4', fontFamily: F.xbold, fontSize: 18 }}>Let's get cooking!</Text>
           </Pressable>
         </Animated.View>
+        </View>
       </View>
     </View>
   );
