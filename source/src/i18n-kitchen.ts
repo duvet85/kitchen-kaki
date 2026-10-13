@@ -111,7 +111,7 @@ export const BADGES: Record<BadgeKey, { icon: string; name: Record<Lang, string>
   soups: { icon: '🍲', name: { en: 'Soup Specialist', tl: 'Eksperto sa Sabaw', id: 'Ahli Sup', my: 'ဟင်းချို ကျွမ်းကျင်သူ' }, how: '3 soups mastered' },
   slow: { icon: '♨️', name: { en: 'Steam & Braise', tl: 'Steam at Braise', id: 'Kukus & Ungkep', my: 'ပေါင်းနှင့် နှပ်' }, how: '3 steamed or braised dishes mastered' },
   wok: { icon: '🔥', name: { en: 'Wok Hands', tl: 'Kamay sa Kawali', id: 'Tangan Wajan', my: 'ဒယ်အိုး လက်စွမ်း' }, how: '3 stir-fries mastered' },
-  favourite: { icon: '⭐', name: { en: 'Family Favourite', tl: 'Paborito ng Pamilya', id: 'Favorit Keluarga', my: 'မိသားစု အကြိုက်' }, how: 'A dish she mastered is rated 5★ by the family' },
+  favourite: { icon: '⭐', name: { en: 'Family Favourite', tl: 'Paborito ng Pamilya', id: 'Favorit Keluarga', my: 'မိသားစု အကြိုက်' }, how: 'A dish she mastered is rated 5 pots by the family' },
   explorer: { icon: '🧭', name: { en: 'Explorer', tl: 'Manlalakbay', id: 'Penjelajah', my: 'စူးစမ်းသူ' }, how: '10 new dishes cooked for the first time' },
   steady: { icon: '🗓️', name: { en: 'Steady Hands', tl: 'Matatag na Kamay', id: 'Tangan Mantap', my: 'တည်ငြိမ်သော လက်' }, how: '4 full weeks cooked' },
   cuisines: { icon: '🌏', name: { en: 'Three Kitchens', tl: 'Tatlong Kusina', id: 'Tiga Dapur', my: 'မီးဖိုချောင် သုံးမျိုး' }, how: 'Dishes mastered in 3 different cuisines' },

@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useRef, useState } from 'react';
+import KakiIntro from '../KakiIntro';
 import { KakiBadge } from '../Kaki';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +29,8 @@ type Msg =
   | { id: string; who: 'proposal'; changes: Change[]; status: 'open' | 'applied' | 'dismissed' }
   | { id: string; who: 'gemini-offer'; text: string; status: 'open' | 'used' };
 
+const INTRO_KEY = 'kitchenKaki.askKakiIntroSeen';
+
 const scopeText = (a: Ask) => (a.scope === 'today' ? 'today' : a.scope === 'tomorrow' ? 'tomorrow' : a.scope === 'rest' ? 'the rest of the week' : null);
 
 /** Floating button that opens the chat. */
@@ -53,12 +57,14 @@ function AskKaki({ onClose }: { onClose: () => void }) {
   const gate = useTripGate(state);
   const ai = useAi();
   const canGemini = !!family || !!(ai.key && ai.model);
-  const [msgs, setMsgs] = useState<Msg[]>([{
-    id: 'hello', who: 'kaki',
-    text: state.plan
-      ? `Hey ${family?.myName || 'kaki'}! 👋 Something come up? Tell me what's changed and I'll rework this week's menu, using what's already in the kitchen where I can.`
-      : `Hey ${family?.myName || 'kaki'}! 👋 Make a weekly menu on the Menu tab first, then I can help when plans change.`,
-  }]);
+  // Kaki's hello and the how-to guide are shown by <KakiIntro/>; the guide appears automatically the first time only
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [tips, setTips] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(INTRO_KEY).then((seen) => {
+      if (!seen) { setTips(true); AsyncStorage.setItem(INTRO_KEY, '1').catch(() => {}); }
+    }).catch(() => {});
+  }, []);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const scroll = useRef<ScrollView>(null);
@@ -131,9 +137,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={{ flex: 1, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
             <Row style={{ paddingHorizontal: 16, paddingVertical: 10, flexWrap: 'nowrap', gap: 12, borderBottomWidth: 1, borderColor: C.line }}>
-              <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 18 }}>K</Text>
-              </View>
+              <KakiBadge size={46} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: F.display, fontSize: 18 }}>Kitchen Kaki</Text>
                 <Text style={{ color: C.muted, fontSize: 12 }}>Your kitchen buddy for last-minute changes</Text>
@@ -142,6 +146,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
             </Row>
 
             <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 10 }}>
+              <KakiIntro hasPlan={!!state.plan} tips={tips} onShowTips={() => setTips(true)} />
               {msgs.map((m) => {
                 if (m.who === 'me' || m.who === 'kaki') return <Bubble key={m.id} me={m.who === 'me'} text={m.text} />;
                 if (m.who === 'gemini-offer') {

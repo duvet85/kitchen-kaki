@@ -8,7 +8,7 @@ import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
 import { DAY_NAMES, dayAfter, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { PlannedDish, Recipe } from '../types';
-import { Button, C, Chip, F, Icon, IconButton, Label, Row, Text, chillies } from '../ui';
+import { Button, C, Chip, F, Icon, IconButton, Label, Row, Text, chillies, pots } from '../ui';
 import { Sheet, cap } from './FamilyScreen';
 import PhotoControls from './PhotoControls';
 import { CategorySheet } from './Categories';
@@ -23,7 +23,7 @@ export function StarsRow({ recipe }: { recipe: Recipe }) {
     <Row style={{ gap: 4 }}>
       {people.map((m) => {
         const s = predictedStars(recipe, m, state)!;
-        return <Chip key={m.id} tone={s >= 4 ? 'good' : s <= 2 ? 'bad' : 'plain'} label={`${m.name} ${'★'.repeat(s)}`} />;
+        return <Chip key={m.id} tone={s >= 4 ? 'good' : s <= 2 ? 'bad' : 'plain'} label={`${m.name} ${pots(s)}`} />;
       })}
     </Row>
   );
@@ -192,7 +192,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
         {x.blocked ? <Text style={{ color: C.amber, fontSize: 12 }}>{x.blocked}</Text> : (
           <Row style={{ gap: 4 }}>
             {x.needVeg && <Chip tone="good" icon="leaf" label={`A vegetable dish for ${DAY_NAMES[day]}`} />}
-            {x.fills.length > 0 && <Chip tone="good" icon="heart" label={`4★+ for ${x.fills.map((m) => m.name).join(', ')}`} />}
+            {x.fills.length > 0 && <Chip tone="good" icon="heart" label={`4+ pots for ${x.fills.map((m) => m.name).join(', ')}`} />}
             {x.fit && (x.fit.toBuy.length === 0
               ? <Chip tone="good" icon="cart-outline" label={x.fit.coming.length ? 'Nothing extra to buy' : 'Uses groceries already bought'} />
               : <Chip tone="warn" icon="cart" label={`Need to buy: ${x.fit.toBuy.map((k) => CATALOGUE[k]?.name ?? k).join(', ')}${x.fit.extraTrip ? ' (another trip)' : ''}`} />)}
@@ -222,7 +222,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
           <Row style={{ marginTop: 8 }}><Chip label="Only dishes that need no extra shopping" selected={onlyHave} onPress={() => setOnlyHave(!onlyHave)} /></Row>
         </>
       )}
-      {missing.length > 0 && !term && <Text style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>{missing.map((m) => m.name).join(', ')} {missing.length === 1 ? "doesn't" : "don't"} have a 4★ dish on {DAY_NAMES[day]} yet.</Text>}
+      {missing.length > 0 && !term && <Text style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>{missing.map((m) => m.name).join(', ')} {missing.length === 1 ? "doesn't" : "don't"} have a 4-pot dish on {DAY_NAMES[day]} yet.</Text>}
       {best.length > 0 && <Label>Best for {DAY_NAMES[day]}</Label>}
       {best.map(row)}
       {term ? <><Label>Matches</Label>{all.map(row)}</> : (

@@ -5,14 +5,15 @@ import { DROP_BELOW, FAVOURITE_FROM } from '../engine/planner';
 import { useApp } from '../state';
 import DishPhoto from '../DishPhoto';
 import { RecipeBookCard } from './RecipeBook';
-import { Button, C, Card, Chip, F, Grid, H2, Icon, Label, P, Row, Screen, Text, Thumb, useLayout } from '../ui';
+import { Button, C, Card, Chip, F, Grid, H2, Icon, Label, P, Row, Screen, Text, Thumb, pots, useLayout } from '../ui';
 
-function Stars({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+/** The family's rating: one to five pots. */
+function Pots({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <Pressable key={n} onPress={() => onChange(n)} hitSlop={4} accessibilityLabel={`${n} stars`}>
-          <Icon name={n <= value ? 'star' : 'star-outline'} size={28} color={n <= value ? C.gold : '#DCCDB8'} />
+        <Pressable key={n} onPress={() => onChange(n)} hitSlop={4} accessibilityRole="button" accessibilityLabel={pots(n)}>
+          <Icon name={n <= value ? 'kaki-pot' : 'kaki-pot-off'} size={34} />
         </Pressable>
       ))}
     </View>
@@ -24,7 +25,7 @@ const VERDICT = (v: number) =>
     : v < DROP_BELOW ? { tone: 'bad' as const, label: 'Removed', icon: 'close' as const }
       : { tone: 'plain' as const, label: 'Kept', icon: 'remove' as const };
 
-/** Step 5: the family gives each dish one star rating together. */
+/** Step 5: the family gives each dish one pot rating together. */
 export default function RatingsScreen() {
   const { state, update } = useApp();
   const thisWeek = [...new Set(state.plan?.status === 'confirmed' ? state.plan.dishes.map((d) => d.recipeId) : [])];
@@ -36,10 +37,10 @@ export default function RatingsScreen() {
   const { cols } = useLayout();
 
   return (
-    <Screen eyebrow="Step 5" title="Family ratings" subtitle="Rate each dish together. 4★ or 5★ makes it a favourite. 2★ or 3★ keeps it as it is. 1★ takes it off future menus.">
+    <Screen eyebrow="Step 5" title="Family ratings" subtitle="Rate each dish together with pots. 4 or 5 pots makes it a favourite. 2 or 3 pots keeps it as it is. 1 pot takes it off future menus.">
       {thisWeek.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 32, gap: 10 }}>
-          <Icon name="star-half-outline" size={30} color={C.faint} />
+          <Icon name="kaki-pot-off" size={44} />
           <P style={{ textAlign: 'center', color: C.muted }}>Once you confirm a weekly menu, its dishes show up here. Rate them together after makan!</P>
         </Card>
       ) : (
@@ -60,7 +61,7 @@ export default function RatingsScreen() {
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={{ fontFamily: F.display, fontSize: 15, lineHeight: 20 }}>{r.name}</Text>
                     <Row style={{ justifyContent: 'space-between' }}>
-                      <Stars value={v} onChange={(n) => rate(id, n)} />
+                      <Pots value={v} onChange={(n) => rate(id, n)} />
                       {v > 0 && <Chip tone={verdict.tone} icon={verdict.icon} label={verdict.label} />}
                     </Row>
                   </View>
@@ -83,7 +84,7 @@ export default function RatingsScreen() {
             <Text style={{ width: 22, fontFamily: F.display, color: i < 3 ? C.brand : C.faint, fontSize: 16 }}>{i + 1}</Text>
             <Text style={{ flex: 1 }}>{r.emoji}  {r.name}</Text>
             <Row style={{ gap: 1 }}>
-              {Array.from({ length: state.ratings[r.id] }, (_, k) => <Icon key={k} name="star" size={13} color={C.gold} />)}
+              {Array.from({ length: state.ratings[r.id] }, (_, k) => <Icon key={k} name="kaki-pot" size={15} />)}
             </Row>
           </Row>
         ))}

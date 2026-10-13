@@ -12,7 +12,7 @@ import DishPhoto from '../DishPhoto';
 import { photoFor } from '../data/photos';
 import { AppState, PlannedDish, Recipe } from '../types';
 import {
-  Bar, Button, C, Card, Chip, F, Grid, H2, Icon, IconButton, Label, Notice, P, Row, Screen, Stepper, Text, Thumb, chillies, useLayout,
+  Bar, Button, C, Card, Chip, F, Grid, H2, Icon, IconButton, Label, Notice, P, Row, Screen, Stepper, Text, Thumb, chillies, pots, useLayout,
 } from '../ui';
 import { cap } from './FamilyScreen';
 import { DishDetail, DishPicker } from './DishSheets';
@@ -196,7 +196,7 @@ export default function PlanScreen() {
             {showExcluded && (
               <View style={{ marginTop: 8, gap: 4 }}>
                 {excluded.map((e) => <Text key={e.recipe.id} style={{ color: C.muted, fontSize: 13 }}>{e.recipe.name}: {e.reasons.join('; ')}</Text>)}
-                {dropped.map((r) => <Text key={r.id} style={{ color: C.muted, fontSize: 13 }}>{r.name}: family rated it {state.ratings[r.id]}★</Text>)}
+                {dropped.map((r) => <Text key={r.id} style={{ color: C.muted, fontSize: 13 }}>{r.name}: family rated it {pots(state.ratings[r.id])}</Text>)}
               </View>
             )}
           </Card>
@@ -229,7 +229,7 @@ export default function PlanScreen() {
                 </Row>
                 {(() => {
                   const gap = missingFavourite(plan, state, day);
-                  return gap.length ? <Notice tone="warn" icon="heart-dislike-outline">No 4★ dish for {gap.map((m) => m.name).join(', ')} today. Swap or add one they'd love.</Notice> : null;
+                  return gap.length ? <Notice tone="warn" icon="heart-dislike-outline">No 4-pot dish for {gap.map((m) => m.name).join(', ')} today. Swap or add one they'd love.</Notice> : null;
                 })()}
                 {(() => {
                   const gap = dishes.every((d) => isCooked(plan, d)) ? null : vegGap(state, day);
@@ -276,7 +276,7 @@ export default function PlanScreen() {
                 </Row>
                 <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the Helper tab.</P>
                 <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your helper is told, and anything new to buy is marked NEW on their list.</Notice>
-                {unrated > 0 && <Notice tone="warn" icon="star-outline">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
+                {unrated > 0 && <Notice tone="warn" icon="kaki-pot-off">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
                 <Button icon="arrow-forward" label={`Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
               </View>
             )}
@@ -354,7 +354,7 @@ function FamilyMenuCard({ progress: p, newPerDay, plan }: { progress: ReturnType
         <Chip tone={p.settled ? 'good' : 'new'} icon={p.settled ? 'checkmark' : 'compass-outline'} label={p.settled ? 'Settled' : 'Discovering'} />
       </Row>
       <View style={{ marginTop: 12 }}><Bar value={p.target ? have / p.target : 1} color={p.settled ? C.green : C.accent} height={10} /></View>
-      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{have} of {p.target} favourites found (dishes rated 4★ or 5★)</Text>
+      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{have} of {p.target} favourites found (dishes rated 4 or 5 pots)</Text>
       <P style={{ marginTop: 10 }}>
         {p.favourites.length === 0
           ? `Everything is new at the start, so ${counts.label.toLowerCase()} is ${counts.isNew} new dishes. Rate them after you eat and the ones you like become favourites.`
@@ -391,7 +391,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
           <Row style={{ marginTop: 6 }}>
             {isSoup(r) && <Chip tone="brand" icon="water-outline" label="Soup" />}
             {dish.added && <Chip tone="plain" icon="add" label="Added" />}
-            <Chip tone={dish.isNew ? 'new' : rating && rating < FAVOURITE_FROM ? 'plain' : 'good'} icon={dish.isNew ? 'sparkles' : rating && rating < FAVOURITE_FROM ? 'remove' : 'heart'} label={dish.isNew ? 'New' : rating && rating < FAVOURITE_FROM ? `Kept ${rating}★` : `Favourite${rating ? ` ${rating}★` : ''}`} />
+            <Chip tone={dish.isNew ? 'new' : rating && rating < FAVOURITE_FROM ? 'plain' : 'good'} icon={dish.isNew ? 'sparkles' : rating && rating < FAVOURITE_FROM ? 'remove' : 'heart'} label={dish.isNew ? 'New' : rating && rating < FAVOURITE_FROM ? `Kept ${pots(rating)}` : `Favourite${rating ? ` ${pots(rating)}` : ''}`} />
             {r.vegetarian && <Chip tone="good" icon="leaf" label="Vegetarian" />}
             {r.pork && <Chip tone="warn" label="Pork" />}
             {r.beef && <Chip tone="warn" label="Beef" />}
@@ -405,7 +405,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
       </Row>
       {(() => {
         const fans = lovedBy(r, state);
-        return fans.length ? <Text style={{ color: C.green, fontSize: 12, marginTop: 8, fontWeight: '600' }}>♥ 4★+ for {fans.map((m) => m.name).join(', ')}</Text> : null;
+        return fans.length ? <Text style={{ color: C.green, fontSize: 12, marginTop: 8, fontWeight: '600' }}>♥ 4+ pots for {fans.map((m) => m.name).join(', ')}</Text> : null;
       })()}
       {vegOnly.length > 0 && <Notice tone="brand" icon="leaf-outline">Not for {vegOnly.map((m) => m.name).join(', ')} (vegetarian)</Notice>}
       {warnings.map(({ m, flags }) => (

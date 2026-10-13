@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-  Pressable, Text as RNText, ScrollView, StyleSheet, TextProps, TextStyle, View, ViewStyle, useWindowDimensions,
+  Image, Pressable, Text as RNText, ScrollView, StyleSheet, TextProps, TextStyle, View, ViewStyle, useWindowDimensions,
 } from 'react-native';
 
 /*
@@ -61,10 +61,18 @@ export function Text({ style, ...rest }: TextProps) {
   return <RNText {...rest} style={[{ color: C.ink, fontSize: 14 }, other, { fontFamily: flat.fontFamily ?? familyFor(fontWeight) }]} />;
 }
 
-export type IconName = keyof typeof Ionicons.glyphMap;
+/** 'kaki-pot' is the Kitchen Kaki pot (ratings use pots, not stars); 'kaki-pot-off' is the faded, empty one. */
+export type IconName = keyof typeof Ionicons.glyphMap | 'kaki-pot' | 'kaki-pot-off';
+const POT_IMG = require('../assets/logo-pot.png');
 export const Icon = ({ name, size = 18, color = C.ink }: { name: IconName; size?: number; color?: string }) => (
-  <Ionicons name={name} size={size} color={color} />
+  name === 'kaki-pot' || name === 'kaki-pot-off'
+    ? <Image source={POT_IMG} resizeMode="contain" accessibilityElementsHidden importantForAccessibility="no"
+        style={{ width: size * 1.2, height: size * 1.2 * (661 / 767), opacity: name === 'kaki-pot-off' ? 0.4 : 1 }} />
+    : <Ionicons name={name} size={size} color={color} />
 );
+
+/** "1 pot", "4 pots": how a rating reads in a sentence. */
+export const pots = (n: number) => `${n} pot${n === 1 ? '' : 's'}`;
 
 /** Tablet = the shorter screen side is at least 600 (iPad, Android tablets), or a wide window. */
 export function useLayout() {

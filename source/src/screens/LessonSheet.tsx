@@ -388,7 +388,7 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
           )}
         </Card>
       ))}
-      {owner && <Text style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>The stars are {helper}'s own rating; let her choose them. Mastery is your call, now or later from the Kitchen tab.</Text>}
+      {owner && <Text style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>The pots are {helper}'s own rating; let her choose them. Mastery is your call, now or later from the Kitchen tab.</Text>}
       <View style={{ marginTop: 16, gap: 8 }}>
         <Button icon="checkmark-done" label={tk('done', lang)} onPress={done} />
       </View>
@@ -396,14 +396,14 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
   );
 }
 
-/** 1 to 5 stars: how sure she feels cooking a dish alone. */
+/** 1 to 5 pots: how sure she feels cooking a dish alone. */
 export function Stars({ value, onChange, lang }: { value?: number; onChange: (n: number) => void; lang: Lang }) {
   return (
     <View style={{ marginTop: 8 }}>
       <Row style={{ gap: 4 }}>
         {[1, 2, 3, 4, 5].map((n) => (
           <Pressable key={n} onPress={() => onChange(n === value ? 0 : n)} hitSlop={4} accessibilityRole="button" accessibilityLabel={`${n} of 5`}>
-            <Icon name={(value ?? 0) >= n ? 'star' : 'star-outline'} size={30} color={(value ?? 0) >= n ? C.gold : C.faint} />
+            <Icon name={(value ?? 0) >= n ? 'kaki-pot' : 'kaki-pot-off'} size={32} />
           </Pressable>
         ))}
       </Row>

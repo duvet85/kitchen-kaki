@@ -28,7 +28,7 @@ const TABS: { key: string; icon: IconName; iconOn: IconName; label: string; Scre
   { key: 'plan', icon: 'calendar-outline', iconOn: 'calendar', label: 'Menu', Screen: PlanScreen },
   { key: 'helper', icon: 'restaurant-outline', iconOn: 'restaurant', label: 'Helper', Screen: HelperScreen },
   { key: 'kitchen', icon: 'ribbon-outline', iconOn: 'ribbon', label: 'Kitchen', Screen: KitchenScreen },
-  { key: 'ratings', icon: 'star-outline', iconOn: 'star', label: 'Ratings', Screen: RatingsScreen },
+  { key: 'ratings', icon: 'kaki-pot-off', iconOn: 'kaki-pot', label: 'Ratings', Screen: RatingsScreen },
   { key: 'health', icon: 'heart-outline', iconOn: 'heart', label: 'Health', Screen: HealthScreen },
   { key: 'settings', icon: 'settings-outline', iconOn: 'settings', label: 'Settings', Screen: SettingsScreen },
 ];
