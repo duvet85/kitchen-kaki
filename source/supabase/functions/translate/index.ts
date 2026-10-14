@@ -12,6 +12,7 @@ const LANG_NAME: Record<string, string> = {
   tl: 'Tagalog (Filipino)',
   id: 'Bahasa Indonesia',
   my: 'Burmese (Myanmar script, Unicode)',
+  zh: 'Simplified Chinese (简体中文, as used in Singapore)',
 };
 const GEMINI = Deno.env.get('GEMINI_API_BASE') ?? 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -21,29 +22,41 @@ const reply = (status: number, body: unknown) =>
 // The Gemini models to try first, best first. Keep this list the same as GEMINI_MODELS in src/ai/models.ts.
 // Only models that appear in the key's own models list are tried; other stable flash models the key has follow, newest first
 // (same rules as src/ai/modelPick.ts). Set the optional secret GEMINI_MODEL to put one model in front of the list.
-const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const MODELS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-flash-lite-latest'];
 const STABLE_FLASH = /^gemini-\d+(\.\d+)?-flash(-lite)?$/;
 const cooling = new Map<string, number>();
-let listed: { at: number; ids: string[] | null } | null = null;
+let listed: { at: number; ids: string[] | null; error?: string } | null = null;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isBusy = (status: number) => status === 500 || status === 502 || status === 503 || status === 504;
 
 type Try = { model: string; ok: boolean; status: number; why?: string };
 type Called = { data?: any; model?: string; error?: string; status: number; denied?: boolean; detail?: string; tries?: Try[] };
 
 const version = (id: string) => parseFloat(id.match(/^gemini-(\d+(?:\.\d+)?)/)?.[1] ?? '0');
 
-/** Text models the key can see, read once per half hour. null if Google's list couldn't be read. */
+/** Text models the key can see, read once per half hour (a failed read is kept for a minute only). null if Google's list couldn't be read. */
 async function listModels(key: string, fresh = false): Promise<string[] | null> {
-  if (fresh || !listed || Date.now() - listed.at > 30 * 60 * 1000) {
+  const ttl = listed?.ids ? 30 * 60 * 1000 : 60 * 1000;
+  if (fresh || !listed || Date.now() - listed.at > ttl) {
     let ids: string[] | null = null;
-    try {
-      const res = await fetch(`${GEMINI}/models?pageSize=1000`, { headers: { 'x-goog-api-key': key } });
-      if (res.ok) {
-        const j = await res.json();
-        ids = (j.models ?? []).filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-          .map((m: any) => String(m.name).replace(/^models\//, '')).filter((m: string) => m.startsWith('gemini-'));
-      }
-    } catch { /* fall back to the fixed list */ }
-    listed = { at: Date.now(), ids };
+    let error = '';
+    for (let i = 0; i < 3; i++) {
+      try {
+        const res = await fetch(`${GEMINI}/models?pageSize=1000`, { headers: { 'x-goog-api-key': key } });
+        const text = await res.text().catch(() => '');
+        if (res.ok) {
+          try {
+            ids = (JSON.parse(text).models ?? []).filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+              .map((m: any) => String(m.name).replace(/^models\//, '')).filter((m: string) => m.startsWith('gemini-'));
+          } catch { error = 'the list was unreadable'; }
+          break;
+        }
+        error = reason(res.status, text);
+        if (!isBusy(res.status)) break;
+      } catch { error = "couldn't reach Google"; }
+      await sleep(600 * (i + 1));
+    }
+    listed = { at: Date.now(), ids, error };
   }
   return listed.ids;
 }
@@ -82,9 +95,12 @@ async function callModels(key: string, body: unknown, cool = true): Promise<Call
   const seen: number[] = [];
   const tries: Try[] = [];
   for (const m of order) {
-    const res = await fetch(`${GEMINI}/models/${m}:generateContent`, {
+    const send = () => fetch(`${GEMINI}/models/${m}:generateContent`, {
       method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
+    let res = await send();
+    // busy on Google's side (503 and friends): wait and ask the same model again before moving on
+    for (let i = 0; i < 2 && !res.ok && isBusy(res.status); i++) { await sleep(900 * (i + 1)); res = await send(); }
     if (res.ok) return { data: await res.json(), model: m, status: 200 };
     const text = await res.text().catch(() => '');
     if (keyRejected(res.status, text)) return { error: 'gemini_key', status: 502 };
@@ -93,7 +109,8 @@ async function callModels(key: string, body: unknown, cool = true): Promise<Call
     if (cool && (res.status === 429 || res.status === 404)) cooling.set(m, Date.now() + 10 * 60 * 1000);
   }
   console.log('No Gemini model answered', JSON.stringify(tries));
-  const detail = `tried ${order.join(', ')}; Google said ${[...new Set(seen)].join(', ')}`;
+  const note = listed?.ids ? `the key lists ${listed.ids.length} text models` : `the key's model list couldn't be read (${listed?.error || 'unknown reason'}), so well-known ids were tried`;
+  const detail = `${note}; tried ${order.join(', ')}; Google said ${[...new Set(seen)].join(', ')}`;
   if (seen.every((c) => c === 429)) return { error: 'quota', status: 429, detail, tries };
   if (seen.every((c) => c === 400 || c === 403)) return { error: 'gemini_key', status: 502, denied: true, detail, tries };
   return { error: 'gemini', status: 502, detail, tries };
@@ -128,7 +145,7 @@ async function check(key: string) {
       search = { model: first.model, ok: false, status: r.status, why: reason(r.status, await r.text().catch(() => '')), links: 0 };
     }
   }
-  return { available, order, text, search };
+  return { available, listError: available ? undefined : listed?.error, order, text, search };
 }
 
 // ---- "Import from a link": read a recipe page's own schema.org Recipe data (no Gemini needed) ----
@@ -185,7 +202,7 @@ async function fetchPage(start: string): Promise<{ html: string; url: string }> 
     let res: Response;
     try {
       res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': IMPORT_UA, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5', 'Accept-Language': 'en' } });
-    } catch { throw new ImportError('page_unreachable', 502); }
+    } catch (e) { throw new ImportError((e as Error)?.name === 'TimeoutError' ? 'page_slow' : 'page_unreachable', 502); }
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       try { url = new URL(res.headers.get('location')!, url); } catch { throw new ImportError('bad_url', 400); }
       continue;
@@ -351,7 +368,8 @@ Deno.serve(async (req) => {
       return reply(200, await importRecipe(link.trim()));
     } catch (e) {
       if (e instanceof ImportError) return reply(e.status, { error: e.code });
-      return reply(502, { error: 'page_unreachable' });
+      console.log('import failed', String(e));
+      return reply(502, { error: 'import_failed', detail: String((e as Error)?.message ?? e).slice(0, 120) });
     }
   }
 
@@ -579,6 +597,10 @@ Deno.serve(async (req) => {
     }
 
     const { name, steps, lang } = body;
+    const ing = (body as { ingredients?: unknown }).ingredients;
+    const ingOk = ing === undefined || (Array.isArray(ing) && ing.length <= 60 && ing.every((s) => typeof s === 'string' && s.length <= 120));
+    if (!ingOk) return reply(400, { error: 'bad_request' });
+    const ingNames = (ing as string[] | undefined) ?? [];
     if (typeof name !== 'string' || typeof lang !== 'string' || !LANG_NAME[lang] || !Array.isArray(steps)
       || steps.length === 0 || steps.length > 30 || name.length > 200
       || steps.some((s) => typeof s !== 'string' || s.length > 800)) {
@@ -588,19 +610,21 @@ Deno.serve(async (req) => {
       `Translate this home-cooking recipe into ${LANG_NAME[lang]} for a domestic helper in Singapore.`,
       'Use simple everyday words. Keep local dish and ingredient names that helpers already know (for example "tau pok", "kangkung", "belacan"), adding a short explanation in brackets if needed.',
       `Return exactly ${steps.length} steps, in the same order, one per input step. Keep every number, time and quantity.`,
+      ...(ingNames.length ? [`Also return "ingredients": exactly ${ingNames.length} names, in the same order, each the input ingredient name in ${LANG_NAME[lang]}.`] : []),
       '',
-      JSON.stringify({ name, steps }),
+      JSON.stringify({ name, steps, ...(ingNames.length ? { ingredients: ingNames } : {}) }),
     ].join('\n'), {
       type: 'OBJECT',
-      properties: { name: { type: 'STRING' }, steps: { type: 'ARRAY', items: { type: 'STRING' } } },
-      required: ['name', 'steps'],
+      properties: { name: { type: 'STRING' }, steps: { type: 'ARRAY', items: { type: 'STRING' } }, ...(ingNames.length ? { ingredients: { type: 'ARRAY', items: { type: 'STRING' } } } : {}) },
+      required: ingNames.length ? ['name', 'steps', 'ingredients'] : ['name', 'steps'],
     });
     if (out.error) return reply(out.status, { error: out.error, detail: out.detail });
-    const v = out.value! as { name?: unknown; steps?: unknown };
-    if (typeof v?.name !== 'string' || !Array.isArray(v.steps) || v.steps.length !== steps.length) {
+    const v = out.value! as { name?: unknown; steps?: unknown; ingredients?: unknown };
+    if (typeof v?.name !== 'string' || !Array.isArray(v.steps) || v.steps.length !== steps.length
+      || (ingNames.length > 0 && (!Array.isArray(v.ingredients) || v.ingredients.length !== ingNames.length))) {
       return reply(502, { error: 'gemini_shape' });
     }
-    return reply(200, { name: v.name, steps: v.steps.map(String), model: out.model });
+    return reply(200, { name: v.name, steps: v.steps.map(String), ...(ingNames.length ? { ingredients: (v.ingredients as unknown[]).map(String) } : {}), model: out.model });
   } catch (e) {
     const status = (e as { status?: number }).status;
     return reply(502, { error: status ? 'gemini_key' : 'gemini' });

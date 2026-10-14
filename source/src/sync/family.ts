@@ -53,7 +53,9 @@ export async function signedIn(sb: SupabaseClient): Promise<string> {
 }
 
 const cleanUrl = (u: string) => {
-  let url = u.trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
+  const dash = u.match(/supabase\.com\/dashboard\/project\/([a-z0-9]{20})/i);
+  if (dash) return `https://${dash[1]}.supabase.co`;
+  let url = u.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '').replace(/\/(rest|auth)\/v1.*$/, '');
   if (/^[a-z0-9]{20}$/i.test(url)) url = `https://${url}.supabase.co`;
   if (!/^https?:\/\//.test(url)) url = `https://${url}`;
   return url;
@@ -68,13 +70,52 @@ function explain(e: { message?: string; code?: string } | null): FamilyError {
   return new FamilyError(m || 'Something went wrong with Supabase.');
 }
 
-export async function createFamily(urlIn: string, key: string, familyName: string, myName: string, state: unknown): Promise<FamilyConfig> {
+const cleanKey = (k: string) => k.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '');
+
+/** Is this the secret (service_role) key? It must never go on a phone. */
+const isSecretKey = (k: string) => {
+  if (/^sb_secret_/.test(k)) return true;
+  try { return JSON.parse(unb64(k.split('.')[1] ?? '')).role === 'service_role'; } catch { return false; }
+};
+
+/**
+ * Checks the project URL and key before signing in, and says the real reason when it cannot connect.
+ * Calls only the project's public auth settings endpoint with the publishable key. Nothing about the family is sent.
+ */
+export async function diagnose(url: string, key: string): Promise<void> {
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(url)) {
+    throw new FamilyError(`"${url}" doesn't look like a Supabase project URL. It should look like https://abcdefghijklmnopqrst.supabase.co (Supabase > Project Settings > API Keys, "Project URL"). Don't paste the dashboard page, the database URL or the key here.`);
+  }
+  if (isSecretKey(key)) throw new FamilyError('That is the secret key (service_role). Never put it in an app. Use the "publishable" key (starts with sb_publishable_) or the legacy "anon" key instead.');
+  if (key.length < 20 || /^https?:/.test(key)) throw new FamilyError('The key looks too short or is a link. Copy the whole publishable key (starts with sb_publishable_) or the legacy anon key (starts with eyJ).');
+  let res: Response;
+  try {
+    res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+  } catch {
+    const host = url.replace(/^https?:\/\//, '');
+    throw new FamilyError(`Couldn't reach ${host}. Either the project URL has a typo (check the 20 letters), the project is paused (free projects pause after a week idle: open it in the Supabase dashboard and press Restore), or this page is not allowed to call Supabase. If you are using the claude.ai preview, try the GitHub Pages site instead: https://duvet85.github.io/kitchen-kaki/`);
+  }
+  if (res.status === 404) throw new FamilyError('Supabase answered, but this is not a project URL. Check the address has the form https://<20 letters>.supabase.co with nothing after it.');
+  if (res.status === 401 || res.status === 403) throw new FamilyError('Supabase rejected the key. Copy the publishable key (sb_publishable_…) or the anon key (eyJ…) again from the same project as this URL, with no spaces.');
+  if (!res.ok) throw new FamilyError(`Supabase answered with an error (${res.status}). If the project was just created, wait a minute and try again.`);
+  const settings = await res.json().catch(() => null) as { external?: Record<string, boolean>; disable_signup?: boolean } | null;
+  if (settings?.external && settings.external.anonymous_users === false) {
+    throw new FamilyError('Connected, but "Allow anonymous sign-ins" is off. Turn it on in Supabase under Authentication > Sign In / Providers, then try again.');
+  }
+}
+
+/** The same checks createFamily runs first, without creating anything. */
+export const checkConnection = (urlIn: string, keyIn: string) => diagnose(cleanUrl(urlIn), cleanKey(keyIn));
+
+export async function createFamily(urlIn: string, keyIn: string, familyName: string, myName: string, state: unknown): Promise<FamilyConfig> {
   const url = cleanUrl(urlIn);
-  const sb = client(url, key.trim());
+  const key = cleanKey(keyIn);
+  await diagnose(url, key);
+  const sb = client(url, key);
   const userId = await signedIn(sb);
   const { data, error } = await sb.rpc('create_household', { p_family: familyName, p_name: myName, p_state: state });
   if (error) throw explain(error);
-  const cfg: FamilyConfig = { url, key: key.trim(), householdId: data as string, role: 'owner', myName, userId };
+  const cfg: FamilyConfig = { url, key, householdId: data as string, role: 'owner', myName, userId };
   await saveConfig(cfg);
   return cfg;
 }
@@ -82,6 +123,7 @@ export async function createFamily(urlIn: string, key: string, familyName: strin
 export async function joinFamily(inviteText: string, myName: string): Promise<FamilyConfig> {
   const inv = decodeInvite(inviteText);
   if (!inv) throw new FamilyError("That doesn't look like a Kitchen Kaki invite. Paste the whole message.");
+  await diagnose(inv.u, inv.k);
   const sb = client(inv.u, inv.k);
   const userId = await signedIn(sb);
   const { data, error } = await sb.rpc('join_household', { p_code: inv.c, p_name: myName });
@@ -149,8 +191,14 @@ export function stableJson(v: unknown): string {
 }
 
 /** Translation through the family's Edge Function; the Gemini key stays in Supabase. */
-export const translateViaFamily = (cfg: FamilyConfig, body: { name: string; steps: string[]; lang: string }) =>
-  callGemini<{ name: string; steps: string[] }>(cfg, body);
+export const translateViaFamily = async (cfg: FamilyConfig, body: { name: string; steps: string[]; lang: string; ingredients?: string[] }) => {
+  const out = await callGemini<{ name: string; steps: string[]; ingredients?: string[] }>(cfg, body);
+  // an older function ignores "ingredients" and only returns name and steps
+  if (body.ingredients?.length && out.ingredients?.length !== body.ingredients.length) {
+    throw new FamilyError('The translate function in Supabase is an older version: it translated the steps but not the ingredients. Paste the new code into it and Deploy again.');
+  }
+  return out;
+};
 
 /** "Ask Kitchen Kaki": Gemini's reply and proposed edits for a message and the menu, through the same function. */
 export const kakiViaFamily = (cfg: FamilyConfig, text: string, ctx: import('../ai/kaki').KakiContext) =>
@@ -202,14 +250,17 @@ async function callGemini<T>(cfg: FamilyConfig, body: object): Promise<T> {
     page_unreachable: "Couldn't reach that website. Check the link, or try again in a moment.",
     not_html: "That link isn't a web page (it may be a PDF or a video). Paste the recipe text instead.",
     too_big: "That page is too big to read. Paste the recipe text instead.",
+    page_slow: "That website took too long to answer. Try again in a moment, or paste the recipe text instead.",
     not_in_family: 'This phone is not in the family any more.',
     not_signed_in: 'Sign-in expired. Reopen the app and try again.',
   };
   if (msg[code]) throw new FamilyError(msg[code]);
   if (status === 404 || /FunctionsRelayError|not found/i.test(error.message)) throw new FamilyError('The "translate" function isn\'t set up in Supabase yet.');
   if (status === 401) throw new FamilyError('Supabase refused the call. Untick "Verify JWT" on the translate function.');
+  if (code === 'import_failed') throw new FamilyError(`Couldn't read that page${detail ? ` (${detail})` : ''}. Paste the recipe text instead.`);
   if (code === 'gemini' && detail) throw new FamilyError(`No Gemini model answered (${detail}). Tap "Test Gemini" in Settings to see what the key can do.`);
   if ((body as { mode?: string }).mode === 'import' && (status === 400 || code === 'bad_request' || code === 'no_key')) throw new FamilyError('The translate function in Supabase is an older version and cannot import links yet. Paste the new code into it and Deploy again.');
   if ((code === 'bad_request' || status === 400) && ['check', 'kaki'].includes((body as { mode?: string }).mode ?? '')) throw new FamilyError('The translate function in Supabase is an older version. Paste the new code into it and Deploy again.');
+  if ((body as { mode?: string }).mode === 'import') throw new FamilyError(`Couldn't read that page${status ? ` (the function answered ${status}${code ? `: ${code}` : ''})` : ''}. If it keeps happening, the translate function in Supabase may be an older version: paste the new code into it and Deploy again. Or paste the recipe text instead.`);
   throw new FamilyError('Gemini call failed. Try again.');
 }

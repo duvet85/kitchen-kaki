@@ -1,4 +1,6 @@
+import { cook, cookL, cooksL, langOptions } from '../cook';
 import React, { useMemo, useState } from 'react';
+import { dishName } from '../ai/text';
 import { Pressable, Share, TextInput, View } from 'react-native';
 import DishPhoto from '../DishPhoto';
 import { recipeById } from '../data/recipes';
@@ -7,13 +9,13 @@ import { BadgeMedal, RankMedal } from '../KakiMedal';
 import { LANGS } from '../i18n';
 import { overdueLessons, placeLesson, unplacedThisWeek } from '../engine/lesson';
 import {
-  POINTS, THANKS_PER_DAY, awaitingConfirm, badges, cookedSet, cookedThisWeek, helperName, helperOf, isThanks, logOf, markMastered, markSeen, masteredMap,
+  POINTS, THANKS_PER_DAY, awaitingConfirm, badges, cookedSet, cookedThisWeek, cookName, helperName, helperOf, isThanks, logOf, markMastered, markSeen, masteredMap,
   newCelebrations, openTips, recognitionOn, recordText, setConfidence, tipSeen, undoEvent,
 } from '../engine/recognition';
 import { DAY_NAMES, eligibleRecipes } from '../engine/planner';
 import { newId, useApp } from '../state';
 import { Lang, Lesson, Recipe } from '../types';
-import { Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
+import { Button, C, Card, Chip, EmptyState, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
 import { Sheet } from './FamilyScreen';
 import { BadgeRow, FeedbackNote, FeedbackSheet, RankCard, shortDate } from './KitchenTips';
 import { LessonActions, LessonPlanner, LessonRow, LessonView, Stars, lessonDate } from './LessonSheet';
@@ -65,7 +67,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
       {!on && (
         <Card style={{ backgroundColor: C.brandSoft, shadowOpacity: 0 }}>
           <Text style={{ fontFamily: F.display, fontSize: 17 }}>Turn on ranks and badges?</Text>
-          <P style={{ marginTop: 4, color: C.muted }}>Helpers are seldom thanked. With this on, {Helper} earns kitchen points for dishes she masters, new dishes she tries and your thank-yous, and moves up kitchen ranks. Points only go up. Thanks and tips work either way.</P>
+          <P style={{ marginTop: 4, color: C.muted }}>{cooksL()[0].toUpperCase() + cooksL().slice(1)} are seldom thanked. With this on, {Helper} earns kitchen points for dishes she masters, new dishes she tries and your thank-yous, and moves up kitchen ranks. Points only go up. Thanks and tips work either way.</P>
           <View style={{ marginTop: 10, alignSelf: 'flex-start' }}><Button small icon="ribbon-outline" label="Set it up" onPress={() => setSettings(true)} /></View>
         </Card>
       )}
@@ -107,7 +109,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
         <View>
           <Label style={{ marginTop: 22 }}>This week's cooking</Label>
           {cooked.length === 0 ? (
-            <Card><P style={{ color: C.muted }}>Dishes show here once {helper} marks them cooked on the Helper tab.</P></Card>
+            <EmptyState title={`Nothing cooked yet`}>Dishes show here once {helper} marks them cooked on the {cook()} tab.</EmptyState>
           ) : cooked.map(({ dish, recipe: r, at }) => {
             const m = mastered.get(r.id);
             const conf = state.confidence?.[r.id];
@@ -136,7 +138,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
 
           <Label style={{ marginTop: 22 }}>Already cooks well?</Label>
           <Card>
-            <P>Many helpers already cook well from a recipe. Tick the dishes {helper} already cooks the way your family likes, so they count as mastered without a lesson.</P>
+            <P>Many {cooksL()} already cook well from a recipe. Tick the dishes {helper} already cooks the way your family likes, so they count as mastered without a lesson.</P>
             <View style={{ marginTop: 10, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="checkbox-outline" label={`Tick dishes ${helper} cooks well`} onPress={() => setChecking(true)} /></View>
           </Card>
         </View>
@@ -226,7 +228,7 @@ function SkillsCheck({ onClose }: { onClose: () => void }) {
       })}
       <View style={{ marginTop: 16, gap: 8 }}>
         <Button icon="ribbon" label={picked.length ? `Confirm ${picked.length} dish${picked.length > 1 ? 'es' : ''} as mastered` : 'Tick some dishes'} disabled={!picked.length} onPress={save} />
-        <Text style={{ color: C.muted, fontSize: 12 }}>Each counts as mastered ({POINTS.mastered} points), so an experienced helper starts at the rank her cooking deserves.</Text>
+        <Text style={{ color: C.muted, fontSize: 12 }}>Each counts as mastered ({POINTS.mastered} points), so an experienced {cookL()} starts at the rank her cooking deserves.</Text>
       </View>
     </Sheet>
   );
@@ -246,8 +248,8 @@ function RecognitionSettings({ onClose }: { onClose: () => void }) {
   };
   return (
     <Sheet title="Recognition" onClose={onClose}>
-      <Label>Your helper's name</Label>
-      <TextInput value={name} onChangeText={(v) => { setName(v); setFresh(false); }} placeholder="e.g. Aini" placeholderTextColor={C.faint} style={s.input} maxLength={30} accessibilityLabel="Helper's name" />
+      <Label>Your {cookL()}'s name</Label>
+      <TextInput value={name} onChangeText={(v) => { setName(v); setFresh(false); }} placeholder="e.g. Aini" placeholderTextColor={C.faint} style={s.input} maxLength={30} accessibilityLabel={`${cook()}'s name`} />
       {renamed && (
         <Notice tone="warn" icon="person-add-outline">
           A new name starts fresh for a new helper: Home Cook, no badges, no tips. {old}'s record is kept but hidden, and comes back if you change the name back. Ask {old} if she'd like to keep her record first (her Kitchen tab has “{tk('saveRecord', 'en')}”).
@@ -257,7 +259,7 @@ function RecognitionSettings({ onClose }: { onClose: () => void }) {
       <Card style={{ marginTop: 0, gap: 6 }}>
         {[
           'It is a thank-you, not a performance review. Points only go up: nothing takes them away.',
-          'No leaderboards and no comparing helpers. Only your family sees it.',
+          `No leaderboards and no comparing ${cooksL()}. Only your family sees it.`,
           'Not tied to pay, bonuses or her contract. Please never use it that way.',
           'She can hide her points. Your thank-you notes still reach her.',
           'When she moves on, she can keep a copy of her record.',
@@ -314,15 +316,15 @@ function HelperKitchen({ preview }: { preview?: () => void }) {
   const mastered = masteredMap(state);
   const cooked = [...cookedSet(state)].map(recipeById).sort((a, b) => Number(mastered.has(b.id)) - Number(mastered.has(a.id)) || a.name.localeCompare(b.name));
   const [rating, setRating] = useState<string | null>(null);
-  const nm = (r: Recipe) => (lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name);
+  const nm = (r: Recipe) => dishName(r, lang);
   const share = async () => { try { await Share.share({ message: recordText(state, lang) }); } catch { /* sharing not available */ } };
 
   return (
-    <Screen eyebrow={preview ? `${helperOf(state)}'s phone` : undefined} title={tk('myKitchen', lang)}>
+    <Screen eyebrow={preview ? `${cookName(state)}'s phone` : undefined} title={tk('myKitchen', lang)}>
       {preview && <View style={{ marginTop: 6, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="arrow-back" label="Back to your view" onPress={preview} /></View>}
       {preview && (
         <Row style={{ marginTop: 10 }}>
-          {LANGS.map((l) => <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />)}
+          {langOptions(state).map((l) => <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />)}
         </Row>
       )}
       {celebrate.map((c) => (

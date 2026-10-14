@@ -1,4 +1,5 @@
 import { Recipe } from '../types';
+import { MORE_MEAL_RECIPES } from './recipes-meals2';
 
 const SOURCE = 'Kitchen Kaki original';
 
@@ -7,6 +8,7 @@ const SOURCE = 'Kitchen Kaki original';
  * They are never planned into the week's dinners (meal is set). Translated names are drafts.
  */
 export const MEAL_RECIPES: Recipe[] = [
+  ...MORE_MEAL_RECIPES,
   // ---- Breakfast ----
   {
     id: 'kaya-toast-eggs', name: 'Kaya Toast with Soft-boiled Eggs', emoji: '🍞', meal: 'breakfast',

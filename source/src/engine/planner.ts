@@ -1,6 +1,6 @@
 import { mealFor } from '../data/categories';
 import { RECIPES, recipeById } from '../data/recipes';
-import { AppState, Member, PlannedDish, Recipe, WeekPlan } from '../types';
+import { AppState, Member, PlannedDish, PlannedMeal, PlannedMealKind, Recipe, WeekPlan } from '../types';
 import { dishCost } from './grocery';
 import { healthFlags } from './health';
 
@@ -376,7 +376,51 @@ export function buildWeekPlan(state: AppState, weekNo: number, weekOf: string): 
   }
   dishes.sort((a, b) => a.day - b.day || Number(isSoup(recipeById(a.recipeId))) - Number(isSoup(recipeById(b.recipeId))));
 
-  return { weekNo, weekOf, dishes, status: 'draft', cooked: [] };
+  const meals = buildMeals(state, weekOf);
+  return { weekNo, weekOf, dishes, ...(meals.length ? { meals } : {}), status: 'draft', cooked: [] };
+}
+
+export const MEAL_KINDS: PlannedMealKind[] = ['breakfast', 'lunch'];
+
+/** The meals besides dinner that the owner switched on in the menu settings. */
+export const mealsOn = (state: Pick<AppState, 'settings'>): PlannedMealKind[] => MEAL_KINDS.filter((k) => state.settings.meals?.[k]);
+
+/**
+ * Breakfasts or lunches that pass the same rules as dinner (allergies, religion, the family's ratings) and are not hotter than the
+ * household takes chilli. Dishes the family has marked as another meal type never show up here.
+ */
+export function mealPool(state: AppState, kind: PlannedMealKind): Recipe[] {
+  const rule = spiceRule(state);
+  return RECIPES.filter((r) => mealFor(r, state) === kind && !exclusionReasons(r, state.members).length
+    && (state.ratings[r.id] ?? 5) >= DROP_BELOW && !(rule.active && rule.isHot(r)));
+}
+
+/** One breakfast or lunch for each day of the week: liked dishes first, not the same dish two days running, and each dish used about equally often. */
+export function buildMeals(state: AppState, weekOf: string, kinds: PlannedMealKind[] = mealsOn(state)): PlannedMeal[] {
+  const out: PlannedMeal[] = [];
+  const days = state.settings.daysPerWeek;
+  for (const kind of kinds) {
+    const pool = mealPool(state, kind);
+    if (!pool.length) continue;
+    const rand = seededRandom(`${weekOf}|${state.refreshCount}|${kind}`);
+    const used = new Map<string, number>();
+    let last = '';
+    for (let day = 0; day < days; day++) {
+      let best: Recipe | null = null;
+      let bestScore = -Infinity;
+      for (const r of pool) {
+        let sc = familyScore(r, state) + rand() * 1.5 - 3 * (used.get(r.id) ?? 0);
+        if (r.id === last && pool.length > 1) sc -= 6;
+        if (state.lastWeek.includes(r.id)) sc -= 1;
+        if (sc > bestScore) { best = r; bestScore = sc; }
+      }
+      if (!best) continue;
+      used.set(best.id, (used.get(best.id) ?? 0) + 1);
+      last = best.id;
+      out.push({ recipeId: best.id, day, meal: kind });
+    }
+  }
+  return out;
 }
 
 /** Spread new dishes evenly across days, then fill with favourites, keeping veg spread out. */

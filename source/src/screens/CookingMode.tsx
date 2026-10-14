@@ -3,7 +3,8 @@ import { Linking, Modal, Pressable, ScrollView, Vibration, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CATALOGUE } from '../data/store';
 import { recipeById } from '../data/recipes';
-import { recipeText } from '../ai/text';
+import { qtyLabel } from '../i18n-units';
+import { recipeText, ingredientLabel } from '../ai/text';
 import DishPhoto from '../DishPhoto';
 import { t } from '../i18n';
 import { newId, useApp } from '../state';
@@ -179,8 +180,8 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
       {r.ingredients.map((ing, k) => (
         <Row key={ing.item} style={{ flexWrap: 'nowrap', paddingVertical: 9, borderTopWidth: k ? 1 : 0, borderColor: C.line }}>
           <Icon name="ellipse" size={8} color={C.brand} />
-          <Text style={{ flex: 1, fontSize: 16 }}>{CATALOGUE[ing.item]?.name ?? ing.item}</Text>
-          <Text style={{ color: C.muted, fontSize: 15 }}>{ing.qty}</Text>
+          <Text style={{ flex: 1, fontSize: 16 }}>{ingredientLabel(r, k, lang, state)}</Text>
+          <Text style={{ color: C.muted, fontSize: 15 }}>{qtyLabel(ing.qty, lang)}</Text>
         </Row>
       ))}
     </View>

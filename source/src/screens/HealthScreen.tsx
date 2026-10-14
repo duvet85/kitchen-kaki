@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -9,7 +10,7 @@ import DishPhoto from '../DishPhoto';
 import { DishDetail, DishPicker } from './DishSheets';
 import { Recipe } from '../types';
 import { useApp } from '../state';
-import { Avatar, Bar, Button, C, Card, Chip, F, Grid, H2, Icon, Label, Notice, P, Row, Screen, Text, chillies, useLayout } from '../ui';
+import { Avatar, Bar, Button, C, Card, Chip, EmptyState, F, Grid, H2, Icon, Label, Notice, P, Row, Screen, Text, chillies, useLayout } from '../ui';
 import { cap } from './FamilyScreen';
 import { useTripGate } from './TripConfirm';
 import { groceryFit } from '../engine/grocery';
@@ -40,10 +41,7 @@ export default function HealthScreen() {
     <Screen eyebrow="Steps 6 to 8" title="Health check" subtitle="Is the week balanced, and what should each person watch out for?">
       <Grid cols={isTablet ? 2 : 1}>
       {!score ? (
-        <Card style={{ alignItems: 'center', paddingVertical: 32, gap: 10 }}>
-          <Icon name="pie-chart-outline" size={30} color={C.faint} />
-          <P style={{ textAlign: 'center', color: C.muted }}>Make a weekly menu and I'll tell you how balanced it is, kaki.</P>
-        </Card>
+        <EmptyState title="Nothing to check yet">Make a weekly menu and I'll tell you how balanced it is, kaki.</EmptyState>
       ) : (
         <Card>
           <Row style={{ flexWrap: 'nowrap', gap: 14 }}>
@@ -95,7 +93,7 @@ export default function HealthScreen() {
       {shown.length > 0 && (
         <Card>
           <Row><Icon name="options-outline" size={18} color={C.brand} /><H2 style={{ marginBottom: 0 }}>Make it more balanced</H2></Row>
-          <Text style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Pick a dish, choose one yourself, or leave it as it is. {state.plan?.status === 'confirmed' ? 'The menu is already sent, so the helper gets a note about any change.' : ''}</Text>
+          <Text style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Pick a dish, choose one yourself, or leave it as it is. {state.plan?.status === 'confirmed' ? `The menu is already sent, so the ${cookL()} gets a note about any change.` : ''}</Text>
           {shown.map((f) => (
             <View key={fixKey(f)} style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: C.line, gap: 8 }}>
               <Text style={{ fontWeight: '700', lineHeight: 20 }}>{f.text}</Text>

@@ -100,5 +100,3 @@ Two features copy or rewrite other people's recipes: **Import from a website lin
 2. **Hide the features.** In `src/config.ts` set `WEB_RECIPES = false` and build. The import, web-search and refresh buttons are gone for good in that build. (The same screen has an on/off switch for a running app.)
 3. **Check what is left.** YouTube links you pasted by hand stay (they are links, not copies). The 47 built-in recipes were written for this app. Dish photos are credited under Settings > Photo credits.
 4. Consider licensed recipe content, or link-and-summarise, if you want web recipes in the paid app.
-
-- Changing a sent menu: free until the helper has finished the supermarket run (every fresh item ticked or skipped). After that, a swap/add/Health fix/Ask Kaki change that needs ingredients not already bought first shows an "Another trip to the supermarket" pop-up listing the extra items; the owner confirms or keeps the menu (No change). Changes needing nothing extra, and removing a dish, never ask.

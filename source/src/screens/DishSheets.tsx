@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { Linking, Pressable, TextInput, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -8,6 +9,7 @@ import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
 import { DAY_NAMES, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { PlannedDish, Recipe } from '../types';
+import { PotRating } from './PotRating';
 import { Button, C, Chip, F, Icon, IconButton, Label, Notice, Row, Text, chillies, pots } from '../ui';
 import { Sheet, cap } from './FamilyScreen';
 import PhotoControls from './PhotoControls';
@@ -194,6 +196,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ fontFamily: F.display, fontSize: 15 }}>{x.r.name}</Text>
         <Text style={{ color: C.muted, fontSize: 12 }}>{cap(x.r.cuisine)} · {x.r.minutes} min · {chillies(x.r.spice)} · {roughMoney(dishCost(x.r))}</Text>
+        <PotRating recipe={x.r} />
         {!x.blocked && x.after.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[day]} would be: {x.after.join(' · ')}</Text>}
         {x.blocked ? <Text style={{ color: C.amber, fontSize: 12 }}>{x.blocked}</Text> : (
           <Row style={{ gap: 4 }}>
@@ -224,7 +227,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
         style={{ marginTop: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: C.ink }} />
       {sent && (
         <>
-          <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent. Each dish shows whether it needs anything beyond the groceries already on the list. Your helper is told about the change.</Text>
+          <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent. Each dish shows whether it needs anything beyond the groceries already on the list. Your {cookL()} is told about the change.</Text>
           <Row style={{ marginTop: 8 }}><Chip label="Only dishes that need no extra shopping" selected={onlyHave} onPress={() => setOnlyHave(!onlyHave)} /></Row>
         </>
       )}

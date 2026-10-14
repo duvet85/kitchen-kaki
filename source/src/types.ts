@@ -1,4 +1,4 @@
-export type Lang = 'en' | 'tl' | 'id' | 'my';
+export type Lang = 'en' | 'tl' | 'id' | 'my' | 'zh';
 
 export type Cuisine = 'chinese' | 'malay' | 'indian' | 'peranakan' | 'western' | 'japanese' | 'korean' | 'thai';
 export type Protein = 'chicken' | 'pork' | 'beef' | 'fish' | 'seafood' | 'egg' | 'tofu' | 'veg';
@@ -36,6 +36,8 @@ export interface Ingredient {
 export interface Translation {
   name: string;
   steps: string[];
+  /** Ingredient names in the helper's language, in the same order as the recipe's ingredients. */
+  ingredients?: string[];
 }
 
 export interface Recipe {
@@ -60,7 +62,7 @@ export interface Recipe {
   ingredients: Ingredient[];
   steps: string[];
   /** dish names in each helper language (the steps are translated live with Gemini, not stored here) */
-  i18n: Record<Exclude<Lang, 'en'>, { name: string }>;
+  i18n: Record<'tl' | 'id' | 'my', { name: string }> & { zh?: { name: string } };
   /** who the recipe comes from. Built-in recipes are "Kitchen Kaki original": written for this app, not copied from a site */
   source: string;
   /** web page the family says the recipe came from (only ever typed or pasted by a person, never made up by the AI) */
@@ -91,7 +93,13 @@ export interface Recipe {
 }
 
 /** meal types shown on the recipe book's Meals tab */
-export type Meal = 'breakfast' | 'drink' | 'dessert';
+export type Meal = 'breakfast' | 'lunch' | 'drink' | 'dessert';
+
+/** the meals that can be planned into the week besides dinner */
+export type PlannedMealKind = 'breakfast' | 'lunch';
+
+/** a breakfast or lunch on a day of the week (one per kind per day) */
+export interface PlannedMeal { recipeId: string; day: number; meal: PlannedMealKind }
 
 /** a category made by the family, shown on the recipe book's Mine tab */
 export interface Collection { id: string; name: string; emoji: string; ids: string[] }
@@ -106,10 +114,21 @@ export interface PlannedDish {
   lesson?: string;
 }
 
+/** A whole week's menu the owner saved under a name ("Menu A") to bring back later. Only recipe ids and days: the rules are checked again when it is used. */
+export interface SavedMenu {
+  id: string;
+  name: string;
+  savedAt: string;
+  dishes: { recipeId: string; day: number; added?: boolean }[];
+  meals?: { recipeId: string; day: number; meal: 'breakfast' | 'lunch' }[];
+}
+
 export interface WeekPlan {
   weekNo: number;
   weekOf: string;
   dishes: PlannedDish[];
+  /** breakfasts and lunches, when the owner switched them on (dinner and soups are in `dishes`) */
+  meals?: PlannedMeal[];
   /** draft: owner is reviewing. confirmed: sent to the helper. */
   status: 'draft' | 'confirmed';
   confirmedAt?: string;
@@ -130,6 +149,12 @@ export interface Settings {
   /** the days the owner picked for soups (0 = Monday). Missing = spread out automatically; fewer than soupsPerWeek = the rest are spread out */
   soupDays?: number[];
   helperLang: Lang;
+  /** What the family calls the person who cooks. Default "Cook". */
+  cookLabel?: string;
+  /** The language of the cook's home country. Only this language (plus English) is offered and translated. */
+  cookLang?: Lang;
+  /** breakfast and lunch to plan besides dinner (missing = dinner only) */
+  meals?: { breakfast?: boolean; lunch?: boolean };
 }
 
 export interface AppState {
@@ -175,6 +200,8 @@ export interface AppState {
   mealOf?: Record<string, Meal | 'none'>;
   /** categories the family made themselves, with the dishes in each */
   collections?: Collection[];
+  /** whole-week menus the owner saved by name, to use again */
+  savedMenus?: SavedMenu[];
   /** Kitchen tab: cooking lessons for the helper */
   lessons?: Lesson[];
   /** Kitchen tab: thanks, tips, mastered dishes and cooking milestones (points are worked out from this) */

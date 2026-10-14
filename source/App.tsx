@@ -20,6 +20,9 @@ import { AskKakiButton } from './src/screens/AskKaki';
 import Splash, { onReplaySplash } from './src/Splash';
 import { KakiBadge } from './src/Kaki';
 import { StateProvider, useApp } from './src/state';
+import { cook } from './src/cook';
+import { TAB_LABEL } from './src/i18n-units';
+import AutoTranslate from './src/ai/AutoTranslate';
 import { C, F, Icon, IconName, Text, useLayout } from './src/ui';
 
 const TABS: { key: string; icon: IconName; iconOn: IconName; label: string; Screen: () => React.JSX.Element }[] = [
@@ -65,18 +68,22 @@ export default function App() {
 const HELPER_TABS = ['helper', 'kitchen', 'settings'];
 
 function Shell() {
-  const { family } = useApp();
-  const tabs = family?.role === 'helper' ? TABS.filter((t) => HELPER_TABS.includes(t.key)) : TABS;
+  const { family, state } = useApp();
+  const hl = state.settings.helperLang;
+  const tabs = (family?.role === 'helper' ? TABS.filter((t) => HELPER_TABS.includes(t.key)) : TABS)
+    .map((t) => (family?.role === 'helper' && hl !== 'en' && TAB_LABEL[t.key] ? { ...t, label: TAB_LABEL[t.key][hl] } : t.key === 'helper' ? { ...t, label: cook() } : t));
   const [picked, setTab] = useState('home');
   const tab = tabs.some((t) => t.key === picked) ? picked : tabs[0].key;
   const { rail, short, railWidth } = useLayout();
   const Active = tabs.find((t) => t.key === tab)!.Screen;
   const showKaki = family?.role !== 'helper' && tab !== 'settings';
 
+  const auto = <AutoTranslate />;
   if (rail) {
     // Tablets, and phones held sideways: navigation rail on the left, content fills the rest.
     return (
       <>
+          {auto}
           <StatusBar style="dark" />
           <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.bg }}>
             <SafeAreaView edges={['top', 'bottom', 'left']} style={{ width: railWidth, backgroundColor: C.card, borderRightWidth: 1, borderColor: C.line }}>
@@ -111,7 +118,7 @@ function Shell() {
 
   return (
     <>
-      
+      {auto}
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top']}>
           <StatusBar style="dark" />
           <View style={{ flex: 1 }}>

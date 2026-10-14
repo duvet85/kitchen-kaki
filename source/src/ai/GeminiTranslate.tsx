@@ -1,22 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { recipeById } from '../data/recipes';
 import { LANGS } from '../i18n';
 import { useApp } from '../state';
 import { Lang } from '../types';
+import { ingredientNames, fullyTranslated } from './text';
 import { Button, C, Card, Icon, Row, Text } from '../ui';
 import { useAi } from './AiProvider';
 import { GeminiError, translateRecipe } from './gemini';
-import { FamilyError, translateViaFamily } from '../sync/family';
+import { FamilyError, FamilyConfig, translateViaFamily } from '../sync/family';
+import { AppState } from '../types';
 
 /** Owner-side card on the helper view: translate this week's recipes with the owner's Gemini key. */
 export default function GeminiTranslate({ lang }: { lang: Exclude<Lang, 'en'> }) {
   const { state, update, family } = useApp();
   const { key, model } = useAi();
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const ids = [...new Set(state.plan?.dishes.map((d) => d.recipeId) ?? [])];
-  const done = ids.filter((id) => state.aiTranslations?.[id]?.[lang]).length;
+  const error = useSyncExternalStore(subscribeTranslate, () => translateError);
+  const ids = [...new Set([...(state.plan?.dishes ?? []), ...(state.plan?.meals ?? [])].map((d) => d.recipeId))];
+  const done = ids.filter((id) => fullyTranslated(recipeById(id), lang, state)).length;
   const langName = LANGS.find((l) => l.key === lang)?.label ?? lang;
 
   if (family?.role === 'helper') return null;
@@ -32,23 +34,10 @@ export default function GeminiTranslate({ lang }: { lang: Exclude<Lang, 'en'> })
   }
 
   const run = async (redo: boolean) => {
-    const todo = redo ? ids : ids.filter((id) => !state.aiTranslations?.[id]?.[lang]);
-    setError(null);
+    const todo = redo ? ids : ids.filter((id) => !fullyTranslated(recipeById(id), lang, state));
     setBusy({ done: 0, total: todo.length });
-    try {
-      for (const [n, id] of todo.entries()) {
-        const r = recipeById(id);
-        const tr = family
-          ? await translateViaFamily(family, { name: r.name, steps: r.steps, lang })
-          : await translateRecipe(key!, r, lang);
-        update((st) => ({ ...st, aiTranslations: { ...st.aiTranslations, [id]: { ...st.aiTranslations?.[id], [lang]: tr } } }));
-        setBusy({ done: n + 1, total: todo.length });
-      }
-    } catch (e) {
-      setError(e instanceof GeminiError || e instanceof FamilyError ? e.message : 'Translation failed. Try again.');
-    } finally {
-      setBusy(null);
-    }
+    await translateAll({ todo, lang, family, key, update, onProgress: (n) => setBusy({ done: n, total: todo.length }) });
+    setBusy(null);
   };
 
   return (
@@ -70,4 +59,37 @@ export default function GeminiTranslate({ lang }: { lang: Exclude<Lang, 'en'> })
       {error && <Text style={{ color: C.red, fontSize: 13, marginTop: 8 }}>{error}</Text>}
     </Card>
   );
+}
+
+// One translation run at a time, by the button or by AutoTranslate. The last failure is kept here so the card can show it.
+let running = false;
+let translateError: string | null = null;
+const listeners = new Set<() => void>();
+export const subscribeTranslate = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+const setTranslateError = (e: string | null) => { translateError = e; listeners.forEach((f) => f()); };
+export const isTranslating = () => running;
+
+/** Translates each dish in `todo` (names, steps, ingredients) and saves it into the state. Stops at the first failure and keeps its reason. */
+export async function translateAll(o: {
+  todo: string[]; lang: Exclude<Lang, 'en'>; family: FamilyConfig | null | undefined; key: string | null | undefined;
+  update: (fn: (st: AppState) => AppState) => void; onProgress?: (done: number) => void;
+}): Promise<boolean> {
+  if (running) return false;
+  running = true; setTranslateError(null);
+  try {
+    for (const [n, id] of o.todo.entries()) {
+      const r = recipeById(id);
+      const tr = o.family
+        ? await translateViaFamily(o.family, { name: r.name, steps: r.steps, lang: o.lang, ingredients: ingredientNames(r) })
+        : await translateRecipe(o.key!, r, o.lang);
+      o.update((st) => ({ ...st, aiTranslations: { ...st.aiTranslations, [id]: { ...st.aiTranslations?.[id], [o.lang]: tr } } }));
+      o.onProgress?.(n + 1);
+    }
+    return true;
+  } catch (e) {
+    setTranslateError(e instanceof GeminiError || e instanceof FamilyError ? e.message : `Translation failed (${e instanceof Error ? e.message : 'unknown'}). Try again, or tap Test Gemini in Settings.`);
+    return false;
+  } finally {
+    running = false;
+  }
 }

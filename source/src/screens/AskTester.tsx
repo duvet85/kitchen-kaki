@@ -28,7 +28,7 @@ export default function AskTester() {
   const [only, setOnly] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const stop = useRef(false);
-  if (!family && !key) return null;
+  const ready = !!family || !!key;
 
   const run = async () => {
     if (!state.plan) { setNote('Make a menu on the Menu tab first. Kaki needs a menu to propose changes to.'); return; }
@@ -65,10 +65,11 @@ export default function AskTester() {
       <Text style={{ color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 19 }}>
         Sends {ASK_EXAMPLES.length} example messages to Gemini, one at a time (about 3 minutes), with this week's menu and dish names, and shows Kaki's reply and the edits it would propose. Each edit is checked by the app against your family's rules first. Nothing about your family goes to Google, and nothing on your menu changes.
       </Text>
+      {!ready && <Notice tone="warn" icon="key-outline">Not available yet: this needs Gemini. Save a Gemini key above, or set up family sharing, then come back here.</Notice>}
       <Row style={{ gap: 8, marginTop: 10 }}>
         {busy
           ? <><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>{done} of {ASK_EXAMPLES.length}…</Text><Button small kind="quiet" label="Stop" onPress={() => { stop.current = true; }} /></>
-          : <Button kind="ghost" icon="chatbubbles-outline" label={rows.length ? 'Run again' : 'Try common questions'} onPress={run} />}
+          : <Button kind="ghost" icon="chatbubbles-outline" label={rows.length ? 'Run again' : 'Try common questions'} onPress={run} disabled={!ready} />}
       </Row>
       {note && <Notice tone="warn" icon="alert-circle-outline">{note}</Notice>}
       {rows.length > 0 && (

@@ -6,6 +6,7 @@ export type Tab = (typeof TABS)[number];
 
 export const MEALS: { id: Meal; title: string; emoji: string }[] = [
   { id: 'breakfast', title: 'Breakfast', emoji: '🍳' },
+  { id: 'lunch', title: 'Lunch', emoji: '🍱' },
   { id: 'drink', title: 'Drinks', emoji: '🥤' },
   { id: 'dessert', title: 'Desserts', emoji: '🍮' },
 ];
@@ -29,6 +30,8 @@ export function groupsFor(tab: Tab, recipes: Recipe[], state: AppState): Group[]
     groups = [
       mk('all', 'All recipes', '📖', recipes),
       mk('soups', 'Soups', '🍜', by((r) => r.course === 'soup' && !mealFor(r, state))),
+      mk('breakfast', 'Breakfast', '🍳', by((r) => mealFor(r, state) === 'breakfast')),
+      mk('lunch', 'Lunch', '🍱', by((r) => mealFor(r, state) === 'lunch')),
       mk('chicken', 'Chicken', '🍗', by((r) => dish(r) && r.protein === 'chicken')),
       mk('pork', 'Pork', '🥓', by((r) => dish(r) && r.protein === 'pork')),
       mk('beef', 'Beef', '🥩', by((r) => dish(r) && (r.protein === 'beef' || (r.beef && r.protein === 'veg')))),

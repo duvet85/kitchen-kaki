@@ -47,6 +47,9 @@ export default function TestGemini() {
             <Text style={{ fontWeight: '700', fontSize: 13 }}>
               {report.available ? `The key can see ${report.available.length} Gemini text models. The app tries these, in order:` : "Couldn't read the key's model list, so the app tries its fixed list:"}
             </Text>
+            {!report.available && report.listError && (
+              <Text style={{ color: C.faint, fontSize: 11 }} numberOfLines={3}>Google said: {report.listError}</Text>
+            )}
             {report.text.map((t) => (
               <View key={t.model}>
                 <Text style={{ fontSize: 13 }}>{t.ok ? '✓' : '✗'} {t.model}: {statusWords(t)}</Text>

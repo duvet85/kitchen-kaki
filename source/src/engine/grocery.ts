@@ -63,9 +63,12 @@ export function ballpark(n: number) {
   return lo === hi ? `~$${hi}` : `$${lo} to $${hi}`;
 }
 
+/** Every recipe of the week's menu: dinner dishes, soups and any breakfasts and lunches (so the shopping list and cost cover them all). */
+export const planRecipeIds = (plan: { dishes: { recipeId: string }[]; meals?: { recipeId: string }[] }) => [...plan.dishes, ...(plan.meals ?? [])].map((d) => d.recipeId);
+
 /** Ticked-off count for the week's fresh items and extras. Items skipped at the shop no longer count. */
 export function shoppingProgress(state: AppState) {
-  const fresh = state.plan ? shoppingList(state.plan.dishes.map((d) => d.recipeId)).filter((l) => !l.pantry) : [];
+  const fresh = state.plan ? shoppingList(planRecipeIds(state.plan)).filter((l) => !l.pantry) : [];
   const swaps = state.shopSwaps ?? {};
   const open = fresh.filter((l) => !(swaps[l.item] && swaps[l.item].to === null));
   const extras = state.extras ?? [];
@@ -80,7 +83,7 @@ const isBought = (st: AppState, item: string) => st.bought.includes(item) || !!s
 /** True once the helper has done the shopping run: every fresh item ticked off or skipped. */
 export function shoppingDone(st: AppState, ignore: string[] = []) {
   if (!st.plan) return false;
-  const fresh = shoppingList(st.plan.dishes.map((d) => d.recipeId)).filter((l) => !l.pantry && !ignore.includes(l.item));
+  const fresh = shoppingList(planRecipeIds(st.plan)).filter((l) => !l.pantry && !ignore.includes(l.item));
   return fresh.length > 0 && fresh.every((l) => isBought(st, l.item));
 }
 
@@ -90,7 +93,7 @@ export function shoppingDone(st: AppState, ignore: string[] = []) {
  * toBuy = not on the list (or skipped at the shop), so someone must buy it.
  */
 export function groceryFit(st: AppState, r: Recipe) {
-  const onList = new Set(st.plan ? shoppingList(st.plan.dishes.map((d) => d.recipeId)).map((l) => l.item) : []);
+  const onList = new Set(st.plan ? shoppingList(planRecipeIds(st.plan)).map((l) => l.item) : []);
   const have: string[] = [], coming: string[] = [], toBuy: string[] = [];
   for (const ing of r.ingredients) {
     if (PANTRY.has(ing.item)) continue;

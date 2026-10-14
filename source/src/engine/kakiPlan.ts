@@ -107,7 +107,8 @@ export function resolveKaki(state: AppState, raw: KakiRaw, idGen: () => string =
     const dishId = str(a.dish), toId = str(a.to);
     const target = plan.dishes.find((d) => d.day === day && d.recipeId === dishId);
     const where = day >= 0 ? DAY_NAMES[day] : 'that day';
-    if (day < 0 || !plan.dishes.some((d) => d.day === day)) { dropped.push(`There is no dinner on ${where}.`); continue; }
+    // adding is fine on a day with no dish yet; the other edits need a dish on that day
+    if (day < 0 || (type !== 'add' && !plan.dishes.some((d) => d.day === day))) { dropped.push(day < 0 ? 'I could not tell which day you meant.' : `There is no dinner on ${where}.`); continue; }
     const candidate = (id: string) => {
       const r = find(id);
       if (!r) { dropped.push('Gemini named a dish that is not in the recipe book, so I skipped it.'); return null; }
@@ -139,6 +140,10 @@ export function resolveKaki(state: AppState, raw: KakiRaw, idGen: () => string =
     } else continue;
     const key = `${type}-${day}-${dishId}`;
     if (used.has(key)) actions.pop(); else used.add(key);
+  }
+  // Gemini's wording must never promise what the app can't do: if nothing survived the checks, say so instead.
+  if (!actions.length && dropped.length && (Array.isArray(raw.actions) ? raw.actions : []).length) {
+    return { reply: "I couldn't make that change:", actions, dropped };
   }
   return { reply, actions, dropped };
 }

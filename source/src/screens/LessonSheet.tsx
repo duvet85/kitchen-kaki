@@ -1,9 +1,10 @@
+import { cook, cookL } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { useAi } from '../ai/AiProvider';
 import { GeminiError } from '../ai/gemini';
 import { LessonPlanAI, planLessonAI, toCandidate } from '../ai/lesson';
-import { recipeText } from '../ai/text';
+import { dishName, recipeText } from '../ai/text';
 import DishPhoto from '../DishPhoto';
 import { SLOTS, SLOT_ICON, SLOT_LABEL, Slot, methodOf, slotOf } from '../data/methods';
 import { recipeById } from '../data/recipes';
@@ -13,7 +14,7 @@ import {
   buildTimeline, candidates, cancelLesson, clock, completeLesson, lessonGroceries, moveLesson, pickTrio, planDayOf, rulesKept, saveLesson,
   teachScore, trioOf, trioProblems,
 } from '../engine/lesson';
-import { helperOf, isMastered, localDate } from '../engine/recognition';
+import { cookName, helperOf, isMastered, localDate } from '../engine/recognition';
 import { DAY_NAMES } from '../engine/planner';
 import { TIP_TEXT, tk } from '../i18n-kitchen';
 import { LANGS } from '../i18n';
@@ -107,7 +108,7 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
   const [teacher, setTeacher] = useState(editing?.teacher ?? family?.myName ?? '');
   const [menuMode, setMenuMode] = useState<Lesson['menuMode']>(editing?.menuMode ?? 'dinner');
   const lang = state.settings.helperLang;
-  const helper = helperOf(state);
+  const helper = cookName(state);
   const pool = useMemo(() => candidates(state), [state]);
   const trio = SLOTS.map((s) => picks[s]).filter(Boolean).map((id) => recipeById(id!));
   const { steps, early } = buildTimeline(trio);
@@ -240,7 +241,7 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
       <Label>{helper}'s language</Label>
       <Text>{LANGS.find((l) => l.key === lang)?.label}{lang !== 'en' ? ', shown with English underneath so you can follow together.' : ''}</Text>
       {lang !== 'en' && trio.some((r) => !recipeText(r, lang, state).stepsTranslated) && (
-        <Notice tone="warn" icon="language-outline">Cooking steps for {trio.filter((r) => !recipeText(r, lang, state).stepsTranslated).map((r) => r.name).join(', ')} aren’t translated yet. Translate them on the Helper tab (Gemini). The lesson tips are already in {LANGS.find((l) => l.key === lang)?.label}.</Notice>
+        <Notice tone="warn" icon="language-outline">Cooking steps for {trio.filter((r) => !recipeText(r, lang, state).stepsTranslated).map((r) => r.name).join(', ')} aren’t translated yet. Translate them on the {cook()} tab (Gemini). The lesson tips are already in {LANGS.find((l) => l.key === lang)?.label}.</Notice>
       )}
 
       {trio.length > 0 && (
@@ -300,7 +301,7 @@ export function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () =>
   const [notes, setNotes] = useState(lesson.notes ?? '');
   const lang = state.settings.helperLang;
   const trio = trioOf(lesson);
-  const name = (id: string) => { const r = recipeById(id); return lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name; };
+  const name = (id: string) => { const r = recipeById(id); return dishName(r, lang); };
   const enName = (id: string) => recipeById(id).name;
   const steps = lesson.timeline;
   const both = (a: string, b: string) => (
@@ -369,7 +370,7 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
   const trio = trioOf(lesson);
   const [conf, setConf] = useState<Record<string, number>>(Object.fromEntries(trio.map((r) => [r.id, state.confidence?.[r.id] ?? 0])));
   const [mastered, setMastered] = useState<string[]>([]);
-  const helper = helperOf(state);
+  const helper = cookName(state);
   const done = () => {
     update((st) => completeLesson(st, lesson.id, Object.fromEntries(Object.entries(conf).filter(([, n]) => n > 0)), notes, mastered, family?.myName, newId));
     onClose();
@@ -379,7 +380,7 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
       <Text style={{ color: C.muted, marginTop: 6 }}>{tk('howSure', lang)}{lang !== 'en' ? `\n${tk('howSure', 'en')}` : ''}</Text>
       {trio.map((r) => (
         <Card key={r.id} style={{ padding: 12 }}>
-          <Text style={{ fontFamily: F.display, fontSize: 16 }}>{lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name}</Text>
+          <Text style={{ fontFamily: F.display, fontSize: 16 }}>{dishName(r, lang)}</Text>
           <Stars value={conf[r.id]} onChange={(n) => setConf({ ...conf, [r.id]: n })} lang={lang} />
           {owner && !isMastered(state, r.id) && (
             <View style={{ marginTop: 8 }}>
@@ -433,7 +434,7 @@ export function LessonActions({ lesson, onClose }: { lesson: Lesson; onClose: ()
           <Label>New day</Label>
           <Row>{nextDays(14).map((d) => { const iso = localDate(d); return <Chip key={iso} label={lessonDate(iso)} selected={date === iso} onPress={() => setDate(iso)} />; })}</Row>
           <Row style={{ marginTop: 8 }}>{TIMES.map((t) => <Chip key={t} label={t} selected={start === t} onPress={() => setStart(t)} />)}</Row>
-          {onMenu && <Notice tone="brand" icon="swap-horizontal">The lesson dishes move with it, and your helper gets the usual “menu changed” note. Groceries already bought stay ticked.</Notice>}
+          {onMenu && <Notice tone="brand" icon="swap-horizontal">The lesson dishes move with it, and your {cookL()} gets the usual “menu changed” note. Groceries already bought stay ticked.</Notice>}
           <View style={{ marginTop: 16 }}><Button icon="calendar" label="Move the lesson" onPress={() => { update((st) => moveLesson(st, lesson.id, date, start, newId)); onClose(); }} /></View>
         </>
       ) : (
@@ -473,7 +474,7 @@ export function LessonRow({ lesson, lang, onOpen, actions }: { lesson: Lesson; l
           {trio.map((r) => (
             <Row key={r.id} style={{ gap: 6, flexWrap: 'nowrap' }}>
               <DishPhoto recipe={r} size={30} />
-              <Text style={{ fontSize: 13, fontWeight: '600' }}>{lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600' }}>{dishName(r, lang)}</Text>
             </Row>
           ))}
         </Row>

@@ -1,6 +1,7 @@
+import { cookL } from '../cook';
 import { recipeById } from '../data/recipes';
 import { AppState, PlannedDish, Recipe } from '../types';
-import { groceryFit, shoppingList } from './grocery';
+import { groceryFit, planRecipeIds, shoppingList } from './grocery';
 import { balanceScore, isFried } from './health';
 import { applyChanges } from './hiccup';
 import { DAY_NAMES, dayAfter, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, missingFavourite, spiceRule } from './planner';
@@ -97,7 +98,7 @@ export function balanceFixes(state: AppState): Fix[] {
   const saltyDay = sc.days.find((x) => x.salty > 1);
   if (saltyDay) {
     const salty = plan.dishes.filter((d) => d.day === saltyDay.day && open(d) && recipeById(d.recipeId).sodium === 'high');
-    push(swapFix('salt', salty, (r) => r.sodium !== 'high', (f, dn) => `${dn} has two salty dishes (salt limit is one teaspoon a day). Swap ${f.name}, or ask the helper to halve the sauce?`));
+    push(swapFix('salt', salty, (r) => r.sodium !== 'high', (f, dn) => `${dn} has two salty dishes (salt limit is one teaspoon a day). Swap ${f.name}, or ask the ${cookL()} to halve the sauce?`));
   }
   // 4. Fat and sugar.
   const rich = plan.dishes.filter((d) => open(d) && isRich(recipeById(d.recipeId)));
@@ -138,7 +139,7 @@ export function removeDish(st: AppState, target: PlannedDish, newId: () => strin
   const dishes = st.plan.dishes.filter((d) => d !== target);
   if (st.plan.status === 'draft') return { ...st, plan: { ...st.plan, dishes } };
   const key = dishKey(target);
-  const stillNeeded = new Set(shoppingList(dishes.map((d) => d.recipeId)).map((l) => l.item));
+  const stillNeeded = new Set(shoppingList(planRecipeIds({ dishes, meals: st.plan.meals })).map((l) => l.item));
   const { [key]: _gone, ...cooking } = st.cooking;
   return {
     ...st,

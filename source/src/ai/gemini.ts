@@ -4,8 +4,9 @@ import { UNDERSTAND_SCHEMA, understandPrompt } from './understand';
 import { Lang, Recipe, Translation } from '../types';
 import { DRAFT_PROMPT, DRAFT_SCHEMA, RawDraft, catalogueLines } from './draft';
 import { GEMINI_MODELS } from './models';
-import { GeminiReport, ModelTry, googleReason, orderModels, textModels } from './modelPick';
+import { GeminiReport, ModelTry, googleReason, isBusy, orderModels, textModels } from './modelPick';
 import { Grounded, SEARCH_PROMPT } from './search';
+import { ingredientNames } from './text';
 
 /**
  * Direct calls to Google's Gemini API with the owner's own key.
@@ -18,6 +19,7 @@ export const LANG_NAME: Record<Exclude<Lang, 'en'>, string> = {
   tl: 'Tagalog (Filipino)',
   id: 'Bahasa Indonesia',
   my: 'Burmese (Myanmar script, Unicode)',
+  zh: 'Simplified Chinese (简体中文, as used in Singapore)',
 };
 
 export class GeminiError extends Error {}
@@ -45,18 +47,31 @@ async function call<T>(key: string, path: string, body?: unknown, rejected = 'Go
 /** Models that just failed for quota or availability are skipped for a while, so every call doesn't wait on them. */
 const cooling = new Map<string, number>();
 
-/** The key's own models list, read once and kept for half an hour, so ids the key can't use are never tried. */
-let listed: { key: string; at: number; ids: string[] | null } | null = null;
-async function modelOrder(key: string): Promise<string[]> {
-  if (!listed || listed.key !== key || Date.now() - listed.at > 30 * 60 * 1000) {
-    let ids: string[] | null = null;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** The key's own models list, read once and kept for half an hour (a failed read only for a minute), so ids the key can't use are never tried. */
+let listed: { key: string; at: number; ids: string[] | null; error?: string } | null = null;
+async function readList(key: string): Promise<{ ids: string[] | null; error?: string; rejected?: boolean }> {
+  let error = '';
+  for (let i = 0; i < 3; i++) {
     try {
       const res = await fetch(`${API}/models?pageSize=1000`, { headers: { 'x-goog-api-key': key } });
-      if (res.ok) ids = textModels(await res.json());
-    } catch { /* offline: fall back to the fixed list */ }
-    listed = { key, at: Date.now(), ids };
+      const text = await res.text().catch(() => '');
+      if (res.ok) { try { return { ids: textModels(JSON.parse(text)) }; } catch { error = 'the list was unreadable'; break; } }
+      if (res.status === 401 || res.status === 403 || (res.status === 400 && /API key not valid|API_KEY_INVALID/i.test(text))) return { ids: null, error: googleReason(res.status, text), rejected: true };
+      error = googleReason(res.status, text);
+      if (!isBusy(res.status)) break;
+    } catch { error = "couldn't reach Google"; }
+    await sleep(600 * (i + 1));
   }
-  return orderModels(GEMINI_MODELS, listed.ids);
+  return { ids: null, error };
+}
+async function modelOrder(key: string): Promise<{ order: string[]; note: string }> {
+  const fresh = listed && listed.key === key && Date.now() - listed.at < (listed.ids ? 30 * 60 * 1000 : 60 * 1000);
+  if (!fresh) { const r = await readList(key); listed = { key, at: Date.now(), ids: r.ids, error: r.error }; }
+  const order = orderModels(GEMINI_MODELS, listed!.ids);
+  const note = listed!.ids ? `the key lists ${listed!.ids.length} text models` : `the key's model list couldn't be read (${listed!.error || 'unknown reason'}), so well-known ids were tried`;
+  return { order, note };
 }
 
 const unreachable = () => new GeminiError(Platform.OS === 'web'
@@ -83,13 +98,15 @@ const isKeyRejected = (status: number, text: string) => status === 401 || (statu
  */
 export async function generateAny<T>(key: string, body: unknown, rejected?: string, cool = true): Promise<{ data: T; model: string }> {
   const now = Date.now();
-  const all = await modelOrder(key);
+  const { order: all, note } = await modelOrder(key);
   const live = all.filter((m) => (cooling.get(m) ?? 0) < now);
   const order = live.length ? live : all;
   const seen: number[] = [];
   const why: string[] = [];
   for (const m of order) {
-    const res = await post(key, m, body);
+    let res = await post(key, m, body);
+    // busy on Google's side (503 and friends): wait and ask the same model again before moving on
+    for (let i = 0; i < 2 && !res.ok && isBusy(res.status); i++) { await sleep(900 * (i + 1)); res = await post(key, m, body); }
     if (res.ok) return { data: (await res.json()) as T, model: m };
     const text = await res.text().catch(() => '');
     if (isKeyRejected(res.status, text)) throw new GeminiError('Google rejected this key. Check it was copied in full.');
@@ -100,7 +117,8 @@ export async function generateAny<T>(key: string, body: unknown, rejected?: stri
   if (rejected && seen.every((c) => c === 400 || c === 403)) throw new GeminiError(rejected);
   if (seen.every((c) => c === 429)) throw new GeminiError('The free Gemini limit is used up on every model for now. Try again later.');
   console.warn('Gemini: no model answered', why);
-  throw new GeminiError(`No Gemini model answered (tried ${order.join(', ')}; Google said ${[...new Set(seen)].join(', ')}). Tap "Test Gemini" in Settings to see what this key can do.`);
+  const busy = seen.some(isBusy);
+  throw new GeminiError(`No Gemini model answered (${note}; tried ${order.join(', ')}; Google said ${[...new Set(seen)].join(', ')}${busy ? ': Google was busy, try again in a minute' : ''}). Tap "Test Gemini" in Settings to see what this key can do.`);
 }
 
 const PING = { contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }], generationConfig: { temperature: 0, maxOutputTokens: 20 } };
@@ -111,12 +129,10 @@ const SEARCH_PING = {
 
 /** "Test Gemini": which models this key can call, and whether plain text and web search each work. Sends only the fixed test prompts. */
 export async function testGemini(key: string): Promise<GeminiReport> {
-  let available: string[] | null = null;
-  const res = await fetch(`${API}/models?pageSize=1000`, { headers: { 'x-goog-api-key': key } }).catch(() => { throw unreachable(); });
-  const listText = await res.text().catch(() => '');
-  if (isKeyRejected(res.status, listText) || res.status === 403) throw new GeminiError('Google rejected this key. Check it was copied in full.');
-  if (res.ok) { try { available = textModels(JSON.parse(listText)); } catch { /* unreadable list */ } }
-  listed = { key, at: Date.now(), ids: available };
+  const r0 = await readList(key);
+  if (r0.rejected) throw new GeminiError('Google rejected this key. Check it was copied in full.');
+  const available = r0.ids;
+  listed = { key, at: Date.now(), ids: available, error: r0.error };
   const order = orderModels(GEMINI_MODELS, available);
   const text: ModelTry[] = [];
   for (const m of order) {
@@ -137,7 +153,7 @@ export async function testGemini(key: string): Promise<GeminiReport> {
       search = { model: first.model, ok: false, status: r.status, why: googleReason(r.status, await r.text().catch(() => '')), links: 0 };
     }
   }
-  return { available, order, text, search };
+  return { available, listError: available ? undefined : r0.error, order, text, search };
 }
 
 type ModelList = { models?: { name: string; supportedGenerationMethods?: string[] }[] };
@@ -155,12 +171,14 @@ type GenerateResponse = { candidates?: { content?: { parts?: { text?: string }[]
 
 /** Translates a recipe's name and steps for the helper. */
 export async function translateRecipe(key: string, r: Recipe, lang: Exclude<Lang, 'en'>): Promise<Translation> {
+  const names = ingredientNames(r);
   const prompt = [
     `Translate this home-cooking recipe into ${LANG_NAME[lang]} for a domestic helper in Singapore.`,
     'Use simple everyday words. Keep local dish and ingredient names that helpers already know (for example "tau pok", "kangkung", "belacan"), adding a short explanation in brackets if needed.',
     `Return exactly ${r.steps.length} steps, in the same order, one per input step. Keep every number, time and quantity.`,
+    ...(names.length ? [`Also return "ingredients": exactly ${names.length} names, in the same order, each the input ingredient name in ${LANG_NAME[lang]}.`] : []),
     '',
-    JSON.stringify({ name: r.name, steps: r.steps }),
+    JSON.stringify({ name: r.name, steps: r.steps, ...(names.length ? { ingredients: names } : {}) }),
   ].join('\n');
   const { data } = await generateAny<GenerateResponse>(key, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -169,8 +187,8 @@ export async function translateRecipe(key: string, r: Recipe, lang: Exclude<Lang
       responseMimeType: 'application/json',
       responseSchema: {
         type: 'OBJECT',
-        properties: { name: { type: 'STRING' }, steps: { type: 'ARRAY', items: { type: 'STRING' } } },
-        required: ['name', 'steps'],
+        properties: { name: { type: 'STRING' }, steps: { type: 'ARRAY', items: { type: 'STRING' } }, ...(names.length ? { ingredients: { type: 'ARRAY', items: { type: 'STRING' } } } : {}) },
+        required: names.length ? ['name', 'steps', 'ingredients'] : ['name', 'steps'],
       },
     },
   });
@@ -184,7 +202,10 @@ export async function translateRecipe(key: string, r: Recipe, lang: Exclude<Lang
   if (!out?.name || !Array.isArray(out.steps) || out.steps.length !== r.steps.length) {
     throw new GeminiError('Gemini skipped some steps. Try again.');
   }
-  return { name: String(out.name), steps: out.steps.map(String) };
+  if (names.length && (!Array.isArray(out.ingredients) || out.ingredients.length !== names.length)) {
+    throw new GeminiError('Gemini skipped some ingredients. Try again.');
+  }
+  return { name: String(out.name), steps: out.steps.map(String), ...(names.length ? { ingredients: out.ingredients!.map(String) } : {}) };
 }
 
 export type UnderstandRaw = { intent?: string; want?: string[]; needs: string[]; missing: string[]; day?: string; scope: string };

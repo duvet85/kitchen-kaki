@@ -1,3 +1,4 @@
+import { cook, cookL } from '../cook';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -5,7 +6,7 @@ import { ballpark, dishCost, money, roughMoney, shoppingDone, shoppingProgress, 
 import { CATALOGUE } from '../data/store';
 import { healthFlags, mildTip } from '../engine/health';
 import {
-  DAY_NAMES, FAVOURITE_FROM, addDays, buildWeekPlan, eligibleRecipes, isCooked, isSoup, lovedBy, menuProgress, missingFavourite, mondayOf, pickedSoupDays, vegGap, soupDaysFor, soupsPerWeek, spiceRule, spreadSoupDays,
+  DAY_NAMES, FAVOURITE_FROM, MEAL_KINDS, addDays, buildWeekPlan, eligibleRecipes, isCooked, isSoup, mealsOn, lovedBy, menuProgress, missingFavourite, mondayOf, pickedSoupDays, vegGap, soupDaysFor, soupsPerWeek, spiceRule, spreadSoupDays,
 } from '../engine/planner';
 import { useApp } from '../state';
 import DishPhoto from '../DishPhoto';
@@ -13,16 +14,21 @@ import { photoFor } from '../data/photos';
 import { AppState, PlannedDish, Recipe } from '../types';
 import {
   Bar, Button, C, Card, Chip, F, Grid, H2, Icon, IconButton, Label, Notice, P, Row, Screen, Stepper, Text, Thumb, chillies, pots, useLayout,
+  Mascot,
 } from '../ui';
 import { cap } from './FamilyScreen';
 import { DishDetail, DishPicker } from './DishSheets';
 import { placeDish, removeDish } from '../engine/balance';
 import { useTripGate } from './TripConfirm';
-import { groceryFit } from '../engine/grocery';
+import { SavedMenusCard } from './SavedMenus';
+import { mealOn } from '../engine/meals';
+import { AddMealButton, MealRow, MealToggles } from './Meals';
+import { PotRating } from './PotRating';
+import { groceryFit, planRecipeIds } from '../engine/grocery';
 import { newId } from '../state';
 
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
-const langName = (l: string) => ({ en: 'English', tl: 'Tagalog', id: 'Bahasa Indonesia', my: 'Burmese' } as Record<string, string>)[l];
+const langName = (l: string) => ({ en: 'English', tl: 'Tagalog', id: 'Bahasa Indonesia', my: 'Burmese', zh: 'Chinese' } as Record<string, string>)[l];
 
 export default function PlanScreen() {
   const { state, update } = useApp();
@@ -35,7 +41,7 @@ export default function PlanScreen() {
   const progress = menuProgress(state);
   const spice = spiceRule(state);
   const ids = plan?.dishes.map((d) => d.recipeId) ?? [];
-  const cost = weekCost(ids);
+  const cost = weekCost(plan ? planRecipeIds(plan) : []);
   const soupIds = new Set(ids.filter((id) => isSoup(recipeById(id))));
 
   const search = (fn: (st: AppState) => AppState) => {
@@ -79,7 +85,7 @@ export default function PlanScreen() {
   const overBudget = settings.weeklyBudget > 0 && cost.fresh * 0.9 > settings.weeklyBudget;
 
   return (
-    <Screen eyebrow="Step 3" title="Weekly menu" subtitle="We suggest the week's dishes. You check them, then your helper gets the recipes and one shopping list.">
+    <Screen eyebrow="Step 3" title="Weekly menu" subtitle={`We suggest the week's dishes. You check them, then your ${cookL()} gets the recipes and one shopping list.`}>
       <Grid cols={isTablet ? 2 : 1}>
       {plan && !searching && (
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
@@ -113,7 +119,7 @@ export default function PlanScreen() {
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>New to buy after the change</Text>
                     <Text style={{ color: '#E4E8CF', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
-                    {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your helper needs to go to the shop again.</Text>}
+                    {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your {cookL()} needs to go to the shop again.</Text>}
                   </View>
                 )}
                 {swaps.length > 0 && (
@@ -149,7 +155,7 @@ export default function PlanScreen() {
             <View style={{ flex: 1 }}>
               <H2>Menu settings</H2>
               <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19 }}>
-                {settings.daysPerWeek} days × {settings.dishesPerDay} dishes · {soups ? `${soups} soup${soups === 1 ? '' : 's'} a week` : 'no soups'} · {settings.newPerDay} new a day when settled ·{' '}
+                {settings.daysPerWeek} days × {settings.dishesPerDay} dishes · {mealsOn(state).length ? `with ${mealsOn(state).join(' and ')} · ` : ''}{soups ? `${soups} soup${soups === 1 ? '' : 's'} a week` : 'no soups'} · {settings.newPerDay} new a day when settled ·{' '}
                 {settings.weeklyBudget ? `$${settings.weeklyBudget} budget` : 'no budget'}
               </Text>
             </View>
@@ -171,6 +177,7 @@ export default function PlanScreen() {
             <Setting label="New dishes per day, once settled" hint="The rest of each day's dishes come from your favourites.">
               <Stepper value={settings.newPerDay} min={0} max={Math.min(2, settings.dishesPerDay)} onChange={(v) => setSettings({ newPerDay: v })} />
             </Setting>
+            <MealToggles />
             <Setting label="Weekly grocery budget" hint="With a budget, cheaper dishes are preferred.">
               <Stepper value={settings.weeklyBudget / 10} min={0} max={40} format={(v) => (v ? `$${v * 10}` : 'No limit')} onChange={(v) => setSettings({ weeklyBudget: v * 10 })} />
             </Setting>
@@ -182,6 +189,8 @@ export default function PlanScreen() {
             : 'Everyone is fine with spicy food, so there is no chilli limit.'}
         </Notice>
       </Card>
+
+      <SavedMenusCard />
 
       {(excluded.length > 0 || dropped.length > 0) && (
         <Pressable onPress={() => setShowExcluded(!showExcluded)}>
@@ -220,13 +229,15 @@ export default function PlanScreen() {
           <Grid cols={Math.min(4, cols(300))}>
           {Array.from({ length: settings.daysPerWeek }, (_, day) => {
             const dishes = plan.dishes.filter((d) => d.day === day);
-            if (!dishes.length && plan.status === 'draft') return null;
+            const dayMeals = MEAL_KINDS.filter((k) => mealsOn(state).includes(k) || mealOn(plan, day, k));
+            if (!dishes.length && plan.status === 'draft' && !(plan.meals ?? []).some((m) => m.day === day)) return null;
             return (
               <View key={day}>
                 <Row style={{ marginTop: 22, marginBottom: 2, gap: 8 }}>
                   <Text style={{ fontFamily: F.display, fontSize: 18 }}>{DAY_NAMES[day]}</Text>
                   <Text style={{ color: C.faint, fontSize: 13 }}>{fmtDate(addDays(plan.weekOf, day))}</Text>
                 </Row>
+                {dayMeals.map((k) => <MealRow key={k} day={day} kind={k} />)}
                 {(() => {
                   const gap = missingFavourite(plan, state, day);
                   return gap.length ? <Notice tone="warn" icon="heart-dislike-outline">No 4-pot dish for {gap.map((m) => m.name).join(', ')} today. Swap or add one they'd love.</Notice> : null;
@@ -247,6 +258,7 @@ export default function PlanScreen() {
                 <Row style={{ marginTop: 8, gap: 8 }}>
                   <Button small kind="ghost" icon="add" label="Dish" onPress={() => add(day, 'dish')} />
                   <Button small kind="ghost" icon="add" label="Soup" onPress={() => add(day, 'soup')} />
+                  {MEAL_KINDS.filter((k) => !dayMeals.includes(k)).map((k) => <AddMealButton key={k} day={day} kind={k} />)}
                 </Row>
               </View>
             );
@@ -264,18 +276,20 @@ export default function PlanScreen() {
             {plan.status === 'draft' ? (
               <View style={{ gap: 10 }}>
                 <H2>Happy with this menu?</H2>
-                <P style={{ color: C.muted }}>Only you can see it for now. Once you confirm, your helper gets the recipes in {langName(settings.helperLang)} and one shopping list for the week.</P>
-                <Button icon="paper-plane" label="Confirm and send to helper" onPress={confirm} />
+                <P style={{ color: C.muted }}>Only you can see it for now. Once you confirm, your {cookL()} gets the recipes in {langName(settings.helperLang)} and one shopping list for the week.</P>
+                <Button icon="paper-plane" label={`Confirm and send to ${cookL()}`} onPress={confirm} />
                 <Button kind="quiet" icon="shuffle" label="Suggest a different set" onPress={findRecipes} />
               </View>
             ) : (
               <View style={{ gap: 10 }}>
-                <Row>
-                  <Icon name="checkmark-circle" size={22} color={C.green} />
-                  <H2 style={{ marginBottom: 0 }}>Sent to your helper</H2>
+                <Row style={{ gap: 12, flexWrap: 'nowrap' }}>
+                  <Mascot size={64} />
+                  <View style={{ flex: 1 }}>
+                    <Row style={{ flexWrap: 'nowrap', gap: 6 }}><Icon name="checkmark-circle" size={22} color={C.green} /><H2 style={{ marginBottom: 0 }}>Sent to your {cookL()}</H2></Row>
+                  </View>
                 </Row>
-                <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the Helper tab.</P>
-                <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your helper is told, and anything new to buy is marked NEW on their list.</Notice>
+                <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the {cook()} tab.</P>
+                <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your {cookL()} is told, and anything new to buy is marked NEW on their list.</Notice>
                 {unrated > 0 && <Notice tone="warn" icon="kaki-pot-off">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
                 <Button icon="arrow-forward" label={`Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
               </View>
@@ -388,6 +402,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
             <Text style={{ fontWeight: '700', fontSize: 15 }}>{roughMoney(dishCost(r, weekIds))}</Text>
           </Row>
           <Text style={{ color: C.muted, fontSize: 13 }}>{cap(r.cuisine)} · {r.minutes} min · {chillies(r.spice)}</Text>
+          <View style={{ marginTop: 6 }}><PotRating recipe={r} /></View>
           <Row style={{ marginTop: 6 }}>
             {isSoup(r) && <Chip tone="brand" icon="water-outline" label="Soup" />}
             {dish.added && <Chip tone="plain" icon="add" label="Added" />}

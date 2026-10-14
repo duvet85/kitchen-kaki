@@ -1,4 +1,6 @@
+import { cook, cookL } from '../cook';
 import { BADGES, BadgeKey, OPPOSITE, RANKS, TIP_TEXT, isPraise, tk } from '../i18n-kitchen';
+import { dishName } from '../ai/text';
 import { methodOf } from '../data/methods';
 import { RECIPES, recipeById } from '../data/recipes';
 import { AppState, KitchenEvent, Lang, Recipe, TipTag } from '../types';
@@ -17,7 +19,9 @@ const LOG_MAX = 1500;
 
 export const helperOf = (st: AppState) => st.recognition?.helper?.trim() || 'Helper';
 /** "Aini", or "your helper" before the owner has given her name. */
-export const helperName = (st: AppState) => st.recognition?.helper?.trim() || 'your helper';
+export const helperName = (st: AppState) => st.recognition?.helper?.trim() || `your ${cookL()}`;
+/** What to show for her: her own name, else the family's word for her ("Cook" by default). helperOf stays the stored key. */
+export const cookName = (st: AppState) => st.recognition?.helper?.trim() || cook();
 export const recognitionOn = (st: AppState) => !!st.recognition?.on;
 
 /** This helper's events that still count. */
@@ -222,10 +226,10 @@ export function recordText(st: AppState, lang: Lang) {
   const mastered = [...masteredMap(st).keys()].map((id) => recipeById(id));
   const b = badges(st).map((k) => `${BADGES[k].icon} ${BADGES[k].name[lang]}`);
   return [
-    `${helperOf(st)} · Kitchen Kaki`,
+    `${cookName(st)} · Kitchen Kaki`,
     `${r.rank.name[lang]} · ${pts} ${tk('points', lang)}`,
     '',
-    `${tk('mastered', lang)}: ${mastered.map((m) => (lang === 'en' ? m.name : m.i18n?.[lang]?.name ?? m.name)).join(', ') || '-'}`,
+    `${tk('mastered', lang)}: ${mastered.map((m) => dishName(m, lang)).join(', ') || '-'}`,
     `${tk('badges', lang)}: ${b.join(', ') || '-'}`,
     `${tk('thanksHead', lang)}: ${logOf(st).filter(isThanks).length}`,
     '',
