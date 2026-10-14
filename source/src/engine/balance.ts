@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import { recipeById } from '../data/recipes';
 import { AppState, PlannedDish, Recipe } from '../types';
 import { groceryFit, planRecipeIds, shoppingList } from './grocery';
@@ -97,7 +98,7 @@ export function balanceFixes(state: AppState): Fix[] {
   const saltyDay = sc.days.find((x) => x.salty > 1);
   if (saltyDay) {
     const salty = plan.dishes.filter((d) => d.day === saltyDay.day && open(d) && recipeById(d.recipeId).sodium === 'high');
-    push(swapFix('salt', salty, (r) => r.sodium !== 'high', (f, dn) => `${dn} has two salty dishes (salt limit is one teaspoon a day). Swap ${f.name}, or ask the helper to halve the sauce?`));
+    push(swapFix('salt', salty, (r) => r.sodium !== 'high', (f, dn) => `${dn} has two salty dishes (salt limit is one teaspoon a day). Swap ${f.name}, or ask the ${cookL()} to halve the sauce?`));
   }
   // 4. Fat and sugar.
   const rich = plan.dishes.filter((d) => open(d) && isRich(recipeById(d.recipeId)));

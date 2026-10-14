@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { CATALOGUE } from '../data/store';
@@ -25,7 +26,7 @@ export function useTripGate(state: AppState) {
   const sheet = pending ? (
     <Sheet title="Another trip to the supermarket" onClose={() => setPending(null)}>
       <Notice tone="warn" icon="cart">
-        Your helper has already done the supermarket run. This change needs more ingredients, so they will have to go again.
+        Your {cookL()} has already done the supermarket run. This change needs more ingredients, so they will have to go again.
       </Notice>
       <Text style={{ fontWeight: '700', marginTop: 12 }}>Extra items to pick up</Text>
       {pending.toBuy.map((k) => <P key={k} style={{ marginTop: 4 }}>• {CATALOGUE[k]?.name ?? k}</P>)}

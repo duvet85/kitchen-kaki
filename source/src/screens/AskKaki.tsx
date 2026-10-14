@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import KakiIntro from '../KakiIntro';
@@ -159,14 +160,14 @@ function AskKaki({ onClose }: { onClose: () => void }) {
       update((st) => applyKaki(st, m.plan.actions, newId));
       setMsgs((x) => x.map((y) => (y.id === m.id ? { ...m, status: 'applied' } : y)));
       const copies = m.plan.actions.filter((a) => a.kind === 'adapt').length;
-      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${state.plan?.status === 'confirmed' ? "The helper's menu is updated and they'll see a note about it." : 'Your draft menu is updated.'}${copies ? ` I saved ${copies === 1 ? 'the changed dish' : `${copies} changed dishes`} in your recipe book as your own adapted ${copies === 1 ? 'copy' : 'copies'}, marked AI-adapted.` : ''}` });
+      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${state.plan?.status === 'confirmed' ? `The ${cookL()}'s menu is updated and they'll see a note about it.` : 'Your draft menu is updated.'}${copies ? ` I saved ${copies === 1 ? 'the changed dish' : `${copies} changed dishes`} in your recipe book as your own adapted ${copies === 1 ? 'copy' : 'copies'}, marked AI-adapted.` : ''}` });
     });
 
   const addDish = (m: Extract<Msg, { who: 'add' }>, day: number, id: string) =>
     gate.ask(groceryFit(state, recipeById(id)).toBuy, () => {
       update((st) => placeDish(st, day, id, undefined, newId));
       setMsgs((x) => x.map((y) => (y.id === m.id ? { ...m, status: 'done' } : y)));
-      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${recipeById(id).name} is added on ${dayName(day)}.${state.plan?.status === 'confirmed' ? " The helper will see a note about it." : ''}` });
+      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${recipeById(id).name} is added on ${dayName(day)}.${state.plan?.status === 'confirmed' ? ` The ${cookL()} will see a note about it.` : ''}` });
     });
 
   const apply = (m: Extract<Msg, { who: 'proposal' }>) => gate.ask(m.changes.filter((c) => c.toId).flatMap((c) => c.toBuy), () => doApply(m));
@@ -177,7 +178,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
     setMsgs((x) => x.map((y) => (y.id === m.id ? { ...m, status: 'applied' } : y)));
     push({
       id: newId(), who: 'kaki',
-      text: `Done, kaki! ${state.plan?.status === 'confirmed' ? "The helper's menu is updated and they'll see a note about the change." : 'Your draft menu is updated.'}`
+      text: `Done, kaki! ${state.plan?.status === 'confirmed' ? `The ${cookL()}'s menu is updated and they'll see a note about the change.` : 'Your draft menu is updated.'}`
         + (toBuy.size ? ` I added ${toBuy.size} item${toBuy.size > 1 ? 's' : ''} to the shopping run under "Other things to buy".` : ''),
     });
   };

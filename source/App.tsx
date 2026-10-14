@@ -20,6 +20,7 @@ import { AskKakiButton } from './src/screens/AskKaki';
 import Splash, { onReplaySplash } from './src/Splash';
 import { KakiBadge } from './src/Kaki';
 import { StateProvider, useApp } from './src/state';
+import { cook } from './src/cook';
 import { TAB_LABEL } from './src/i18n-units';
 import AutoTranslate from './src/ai/AutoTranslate';
 import { C, F, Icon, IconName, Text, useLayout } from './src/ui';
@@ -70,7 +71,7 @@ function Shell() {
   const { family, state } = useApp();
   const hl = state.settings.helperLang;
   const tabs = (family?.role === 'helper' ? TABS.filter((t) => HELPER_TABS.includes(t.key)) : TABS)
-    .map((t) => (family?.role === 'helper' && hl !== 'en' && TAB_LABEL[t.key] ? { ...t, label: TAB_LABEL[t.key][hl] } : t));
+    .map((t) => (family?.role === 'helper' && hl !== 'en' && TAB_LABEL[t.key] ? { ...t, label: TAB_LABEL[t.key][hl] } : t.key === 'helper' ? { ...t, label: cook() } : t));
   const [picked, setTab] = useState('home');
   const tab = tabs.some((t) => t.key === picked) ? picked : tabs[0].key;
   const { rail, short, railWidth } = useLayout();

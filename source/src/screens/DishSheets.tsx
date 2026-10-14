@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { Linking, Pressable, TextInput, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -226,7 +227,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
         style={{ marginTop: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: C.ink }} />
       {sent && (
         <>
-          <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent. Each dish shows whether it needs anything beyond the groceries already on the list. Your helper is told about the change.</Text>
+          <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent. Each dish shows whether it needs anything beyond the groceries already on the list. Your {cookL()} is told about the change.</Text>
           <Row style={{ marginTop: 8 }}><Chip label="Only dishes that need no extra shopping" selected={onlyHave} onPress={() => setOnlyHave(!onlyHave)} /></Row>
         </>
       )}

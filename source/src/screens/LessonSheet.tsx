@@ -1,3 +1,4 @@
+import { cook, cookL } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { useAi } from '../ai/AiProvider';
@@ -13,7 +14,7 @@ import {
   buildTimeline, candidates, cancelLesson, clock, completeLesson, lessonGroceries, moveLesson, pickTrio, planDayOf, rulesKept, saveLesson,
   teachScore, trioOf, trioProblems,
 } from '../engine/lesson';
-import { helperOf, isMastered, localDate } from '../engine/recognition';
+import { cookName, helperOf, isMastered, localDate } from '../engine/recognition';
 import { DAY_NAMES } from '../engine/planner';
 import { TIP_TEXT, tk } from '../i18n-kitchen';
 import { LANGS } from '../i18n';
@@ -107,7 +108,7 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
   const [teacher, setTeacher] = useState(editing?.teacher ?? family?.myName ?? '');
   const [menuMode, setMenuMode] = useState<Lesson['menuMode']>(editing?.menuMode ?? 'dinner');
   const lang = state.settings.helperLang;
-  const helper = helperOf(state);
+  const helper = cookName(state);
   const pool = useMemo(() => candidates(state), [state]);
   const trio = SLOTS.map((s) => picks[s]).filter(Boolean).map((id) => recipeById(id!));
   const { steps, early } = buildTimeline(trio);
@@ -240,7 +241,7 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
       <Label>{helper}'s language</Label>
       <Text>{LANGS.find((l) => l.key === lang)?.label}{lang !== 'en' ? ', shown with English underneath so you can follow together.' : ''}</Text>
       {lang !== 'en' && trio.some((r) => !recipeText(r, lang, state).stepsTranslated) && (
-        <Notice tone="warn" icon="language-outline">Cooking steps for {trio.filter((r) => !recipeText(r, lang, state).stepsTranslated).map((r) => r.name).join(', ')} aren’t translated yet. Translate them on the Helper tab (Gemini). The lesson tips are already in {LANGS.find((l) => l.key === lang)?.label}.</Notice>
+        <Notice tone="warn" icon="language-outline">Cooking steps for {trio.filter((r) => !recipeText(r, lang, state).stepsTranslated).map((r) => r.name).join(', ')} aren’t translated yet. Translate them on the {cook()} tab (Gemini). The lesson tips are already in {LANGS.find((l) => l.key === lang)?.label}.</Notice>
       )}
 
       {trio.length > 0 && (
@@ -369,7 +370,7 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
   const trio = trioOf(lesson);
   const [conf, setConf] = useState<Record<string, number>>(Object.fromEntries(trio.map((r) => [r.id, state.confidence?.[r.id] ?? 0])));
   const [mastered, setMastered] = useState<string[]>([]);
-  const helper = helperOf(state);
+  const helper = cookName(state);
   const done = () => {
     update((st) => completeLesson(st, lesson.id, Object.fromEntries(Object.entries(conf).filter(([, n]) => n > 0)), notes, mastered, family?.myName, newId));
     onClose();
@@ -433,7 +434,7 @@ export function LessonActions({ lesson, onClose }: { lesson: Lesson; onClose: ()
           <Label>New day</Label>
           <Row>{nextDays(14).map((d) => { const iso = localDate(d); return <Chip key={iso} label={lessonDate(iso)} selected={date === iso} onPress={() => setDate(iso)} />; })}</Row>
           <Row style={{ marginTop: 8 }}>{TIMES.map((t) => <Chip key={t} label={t} selected={start === t} onPress={() => setStart(t)} />)}</Row>
-          {onMenu && <Notice tone="brand" icon="swap-horizontal">The lesson dishes move with it, and your helper gets the usual “menu changed” note. Groceries already bought stay ticked.</Notice>}
+          {onMenu && <Notice tone="brand" icon="swap-horizontal">The lesson dishes move with it, and your {cookL()} gets the usual “menu changed” note. Groceries already bought stay ticked.</Notice>}
           <View style={{ marginTop: 16 }}><Button icon="calendar" label="Move the lesson" onPress={() => { update((st) => moveLesson(st, lesson.id, date, start, newId)); onClose(); }} /></View>
         </>
       ) : (

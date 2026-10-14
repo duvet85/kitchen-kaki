@@ -1,3 +1,4 @@
+import { cook, cookL } from '../cook';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, TextInput, View } from 'react-native';
 import { useApp } from '../state';
@@ -6,7 +7,7 @@ import {
 } from '../sync/family';
 import { Avatar, Button, C, Card, Chip, H2, Icon, Label, Notice, Row, Text, s } from '../ui';
 
-const ROLE_LABEL = { owner: 'Owner', parent: 'Parent', helper: 'Helper' } as const;
+const roleLabel = (r: 'owner' | 'parent' | 'helper') => (r === 'helper' ? cook() : r === 'owner' ? 'Owner' : 'Parent');
 const webInvite = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('join') : null);
 
 /** Settings card: set up a family in Supabase, join one with an invite, or manage it. */
@@ -126,7 +127,7 @@ function Connected({ family }: { family: FamilyConfig }) {
   const share = async (code: string, who: 'parent' | 'helper') => {
     const inv = encodeInvite(family, code);
     const link = Platform.OS === 'web' && typeof window !== 'undefined' ? `\n${window.location.origin}${window.location.pathname}?join=${inv.slice(4)}` : '';
-    const message = `Join ${info?.name ?? 'our family'} on Kitchen Kaki${who === 'helper' ? ' (helper)' : ''}. Open the app, go to Settings > Join with an invite, and paste this whole message:\n${inv}${link}`;
+    const message = `Join ${info?.name ?? 'our family'} on Kitchen Kaki${who === 'helper' ? ` (${cookL()})` : ''}. Open the app, go to Settings > Join with an invite, and paste this whole message:\n${inv}${link}`;
     setShown(message);
     try { await Share.share({ message }); } catch { /* user closed the sheet, or no share on this browser: the text is shown below */ }
   };
@@ -145,7 +146,7 @@ function Connected({ family }: { family: FamilyConfig }) {
             <Text style={{ color: C.muted, fontSize: 13 }}>{sync === 'live' ? 'In sync' : sync === 'connecting' ? 'Connecting…' : 'Offline, will catch up'}</Text>
           </Row>
         </View>
-        <Chip tone="brand" label={`You: ${ROLE_LABEL[family.role]}`} />
+        <Chip tone="brand" label={`You: ${roleLabel(family.role)}`} />
       </Row>
 
       {error && <Notice tone="bad" icon="cloud-offline-outline">{error}</Notice>}
@@ -155,7 +156,7 @@ function Connected({ family }: { family: FamilyConfig }) {
         <Row key={m.user_id} style={{ flexWrap: 'nowrap', gap: 10, paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
           <Avatar name={m.name || '?'} index={i} />
           <Text style={{ flex: 1, fontWeight: '600' }}>{m.name || 'No name'}</Text>
-          <Text style={{ color: C.muted, fontSize: 13 }}>{ROLE_LABEL[m.role]}</Text>
+          <Text style={{ color: C.muted, fontSize: 13 }}>{roleLabel(m.role)}</Text>
           {parent && m.role !== 'owner' && m.user_id !== family.userId && (
             <Pressable onPress={() => removeMember(family, m.user_id).then(() => setTick(tick + 1)).catch((e) => setError(e.message))}
               accessibilityLabel={`Remove ${m.name}`} hitSlop={6}>
@@ -169,11 +170,11 @@ function Connected({ family }: { family: FamilyConfig }) {
         <>
           <Label>Invite someone</Label>
           <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19, marginBottom: 8 }}>
-            Send the invite by WhatsApp. A parent sees everything; the helper only sees the confirmed menu, shopping list and cooking mode.
+            Send the invite by WhatsApp. A parent sees everything; the {cookL()} only sees the confirmed menu, shopping list and cooking mode.
           </Text>
           <Row style={{ gap: 8 }}>
             <Button icon="person-add-outline" label="Invite a parent" onPress={() => share(info.codes!.parent_code, 'parent')} />
-            <Button kind="ghost" icon="restaurant-outline" label="Invite the helper" onPress={() => share(info.codes!.helper_code, 'helper')} />
+            <Button kind="ghost" icon="restaurant-outline" label={`Invite the ${cookL()}`} onPress={() => share(info.codes!.helper_code, 'helper')} />
           </Row>
           {shown && (
             <View style={{ marginTop: 10, backgroundColor: C.bg, borderRadius: 12, padding: 12 }}>
@@ -182,7 +183,7 @@ function Connected({ family }: { family: FamilyConfig }) {
             </View>
           )}
           <Text selectable style={{ color: C.faint, fontSize: 12, marginTop: 10 }}>
-            Codes: parent {info.codes.parent_code} · helper {info.codes.helper_code}
+            Codes: parent {info.codes.parent_code} · {cookL()} {info.codes.helper_code}
           </Text>
           <Pressable onPress={() => resetInvites(family).then(() => setTick(tick + 1)).catch((e) => setError(e.message))} style={{ marginTop: 6 }}>
             <Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>Make new codes (old invites stop working)</Text>

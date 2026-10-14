@@ -6,7 +6,7 @@ import { translateRecipe } from '../ai/gemini';
 import { recipeById } from '../data/recipes';
 import { BADGES, BadgeKey, PRAISE, TIPS, TIP_CHIP, TIP_TEXT, isPraise, tk } from '../i18n-kitchen';
 import { LANGS } from '../i18n';
-import { clearTweak, feedbackText, helperOf, openTips, points, rankOf, sendFeedback } from '../engine/recognition';
+import { clearTweak, feedbackText, cookName, helperOf, openTips, points, rankOf, sendFeedback } from '../engine/recognition';
 import { newId, useApp } from '../state';
 import { translateViaFamily } from '../sync/family';
 import { KitchenEvent, Lang, Recipe, TipTag } from '../types';
@@ -94,7 +94,7 @@ export function FeedbackSheet({ recipe: r, mode, onClose }: { recipe?: Recipe; m
   const [busy, setBusy] = useState(false);
   const lang = state.settings.helperLang;
   const langName = LANGS.find((l) => l.key === lang)?.label ?? '';
-  const helper = helperOf(state);
+  const helper = cookName(state);
   const gemini = !!(family || (key && model));
   const toggle = (k: TipTag) => setTags((t) => (t.includes(k) ? t.filter((x) => x !== k) : [...t, k]));
   const fixes = tags.filter((x) => !isPraise(x));

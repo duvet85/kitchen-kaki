@@ -1,3 +1,4 @@
+import { cook, cookL } from '../cook';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -84,7 +85,7 @@ export default function PlanScreen() {
   const overBudget = settings.weeklyBudget > 0 && cost.fresh * 0.9 > settings.weeklyBudget;
 
   return (
-    <Screen eyebrow="Step 3" title="Weekly menu" subtitle="We suggest the week's dishes. You check them, then your helper gets the recipes and one shopping list.">
+    <Screen eyebrow="Step 3" title="Weekly menu" subtitle={`We suggest the week's dishes. You check them, then your ${cookL()} gets the recipes and one shopping list.`}>
       <Grid cols={isTablet ? 2 : 1}>
       {plan && !searching && (
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
@@ -118,7 +119,7 @@ export default function PlanScreen() {
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, gap: 4 }}>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>New to buy after the change</Text>
                     <Text style={{ color: '#E4E8CF', fontSize: 13 }}>{(state.lateItems ?? []).filter((k) => !state.bought.includes(k)).map((k) => CATALOGUE[k]?.name ?? k).join(', ')}</Text>
-                    {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your helper needs to go to the shop again.</Text>}
+                    {shoppingDone(state, state.lateItems) && <Text style={{ color: '#FFE3A8', fontSize: 12, fontWeight: '700' }}>Shopping was already done, so your {cookL()} needs to go to the shop again.</Text>}
                   </View>
                 )}
                 {swaps.length > 0 && (
@@ -275,8 +276,8 @@ export default function PlanScreen() {
             {plan.status === 'draft' ? (
               <View style={{ gap: 10 }}>
                 <H2>Happy with this menu?</H2>
-                <P style={{ color: C.muted }}>Only you can see it for now. Once you confirm, your helper gets the recipes in {langName(settings.helperLang)} and one shopping list for the week.</P>
-                <Button icon="paper-plane" label="Confirm and send to helper" onPress={confirm} />
+                <P style={{ color: C.muted }}>Only you can see it for now. Once you confirm, your {cookL()} gets the recipes in {langName(settings.helperLang)} and one shopping list for the week.</P>
+                <Button icon="paper-plane" label={`Confirm and send to ${cookL()}`} onPress={confirm} />
                 <Button kind="quiet" icon="shuffle" label="Suggest a different set" onPress={findRecipes} />
               </View>
             ) : (
@@ -284,11 +285,11 @@ export default function PlanScreen() {
                 <Row style={{ gap: 12, flexWrap: 'nowrap' }}>
                   <Mascot size={64} />
                   <View style={{ flex: 1 }}>
-                    <Row style={{ flexWrap: 'nowrap', gap: 6 }}><Icon name="checkmark-circle" size={22} color={C.green} /><H2 style={{ marginBottom: 0 }}>Sent to your helper</H2></Row>
+                    <Row style={{ flexWrap: 'nowrap', gap: 6 }}><Icon name="checkmark-circle" size={22} color={C.green} /><H2 style={{ marginBottom: 0 }}>Sent to your {cookL()}</H2></Row>
                   </View>
                 </Row>
-                <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the Helper tab.</P>
-                <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your helper is told, and anything new to buy is marked NEW on their list.</Notice>
+                <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the {cook()} tab.</P>
+                <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your {cookL()} is told, and anything new to buy is marked NEW on their list.</Notice>
                 {unrated > 0 && <Notice tone="warn" icon="kaki-pot-off">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
                 <Button icon="arrow-forward" label={`Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
               </View>

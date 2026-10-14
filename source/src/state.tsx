@@ -1,3 +1,4 @@
+import { setCookLabel } from './cook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { DEMO_STATE } from './data/demo';
@@ -36,6 +37,7 @@ function keepLocalRecipes(local: AppState, server: AppState): AppState {
  */
 export function StateProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(DEMO_STATE);
+  setCookLabel(state.settings.cookLabel);
   const [family, setFamily] = useState<FamilyConfig | null>(null);
   const [sync, setSync] = useState<SyncStatus>('off');
   const loaded = useRef(false);

@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useState } from 'react';
 import { KakiBadge } from '../Kaki';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, TextInput, View } from 'react-native';
@@ -9,6 +10,7 @@ import FamilyShare from './FamilyShare';
 import PhotoCredits from './PhotoCredits';
 import { playSplash } from '../Splash';
 import WebRecipes from './WebRecipes';
+import CookLabel from './CookLabel';
 import TestGemini from './TestGemini';
 import AskTester from './AskTester';
 import { Button, C, Card, Chip, Grid, H2, Icon, Label, Notice, Row, Screen, Text, s, useLayout } from '../ui';
@@ -82,12 +84,12 @@ export default function SettingsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <H2 style={{ marginBottom: 0 }}>Google Gemini</H2>
-                <Text style={{ color: C.muted, fontSize: 13 }}>Translates recipes for your helper</Text>
+                <Text style={{ color: C.muted, fontSize: 13 }}>Translates recipes for your {cookL()}</Text>
               </View>
             </Row>
             <View style={{ gap: 10, marginTop: 14 }}>
               {[
-                ['lock-closed-outline', 'The Gemini key is saved once in your Supabase project (Edge Functions > Secrets > GEMINI_API_KEY). No phone holds it, so your wife and helper never need it.'],
+                ['lock-closed-outline', `The Gemini key is saved once in your Supabase project (Edge Functions > Secrets > GEMINI_API_KEY). No phone holds it, so your wife and ${cookL()} never need it.`],
                 ['medkit-outline', 'Only recipe text is sent to Google. Family names, allergies and health details are never sent.'],
                 ['wallet-outline', 'The free Gemini tier is enough for a weekly menu. If it runs out, the built-in translations are used.'],
               ].map(([icon, text]) => (
@@ -108,7 +110,7 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <H2 style={{ marginBottom: 0 }}>Google Gemini</H2>
-              <Text style={{ color: C.muted, fontSize: 13 }}>Translates recipes for your helper</Text>
+              <Text style={{ color: C.muted, fontSize: 13 }}>Translates recipes for your {cookL()}</Text>
             </View>
             <Chip tone={key ? 'good' : 'plain'} icon={key ? 'checkmark' : 'remove'} label={key ? 'Connected' : 'Not set'} />
           </Row>
@@ -159,6 +161,7 @@ export default function SettingsScreen() {
         </Grid>
       )}
 
+      {!helper && <CookLabel />}
       {!helper && <WebRecipes />}
       <Card style={{ marginTop: 22 }}>
         <Row style={{ flexWrap: 'nowrap', gap: 14 }}>

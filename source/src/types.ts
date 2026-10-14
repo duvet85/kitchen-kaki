@@ -149,6 +149,8 @@ export interface Settings {
   /** the days the owner picked for soups (0 = Monday). Missing = spread out automatically; fewer than soupsPerWeek = the rest are spread out */
   soupDays?: number[];
   helperLang: Lang;
+  /** What the family calls the person who cooks. Default "Cook". */
+  cookLabel?: string;
   /** breakfast and lunch to plan besides dinner (missing = dinner only) */
   meals?: { breakfast?: boolean; lunch?: boolean };
 }

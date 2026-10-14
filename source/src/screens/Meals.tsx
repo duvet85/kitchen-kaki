@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { RECIPES, recipeById } from '../data/recipes';
@@ -109,7 +110,7 @@ function MealPicker({ day, kind, current, onPick, onClose }: { day: number; kind
           <Text style={{ fontWeight: '600' }}>No change: keep {recipeById(current).name}</Text>
         </Pressable>
       )}
-      {sent && <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent, so each one shows whether it needs anything beyond the groceries already on the list. Your helper is told about the change.</Text>}
+      {sent && <Text style={{ color: C.muted, fontSize: 13, marginTop: 10, lineHeight: 19 }}>The menu has been sent, so each one shows whether it needs anything beyond the groceries already on the list. Your {cookL()} is told about the change.</Text>}
       {rows.length === 0 && <Text style={{ color: C.muted, marginTop: 12 }}>No {L.title.toLowerCase()} recipe fits your family's rules.</Text>}
       {rows.map(({ r, fit }) => (
         <Pressable key={r.id} onPress={() => onPick(r.id)} accessibilityRole="button" accessibilityLabel={`Choose ${r.name}`}

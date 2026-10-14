@@ -1,3 +1,4 @@
+import { cookL } from '../cook';
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -92,7 +93,7 @@ export default function HealthScreen() {
       {shown.length > 0 && (
         <Card>
           <Row><Icon name="options-outline" size={18} color={C.brand} /><H2 style={{ marginBottom: 0 }}>Make it more balanced</H2></Row>
-          <Text style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Pick a dish, choose one yourself, or leave it as it is. {state.plan?.status === 'confirmed' ? 'The menu is already sent, so the helper gets a note about any change.' : ''}</Text>
+          <Text style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Pick a dish, choose one yourself, or leave it as it is. {state.plan?.status === 'confirmed' ? `The menu is already sent, so the ${cookL()} gets a note about any change.` : ''}</Text>
           {shown.map((f) => (
             <View key={fixKey(f)} style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderColor: C.line, gap: 8 }}>
               <Text style={{ fontWeight: '700', lineHeight: 20 }}>{f.text}</Text>

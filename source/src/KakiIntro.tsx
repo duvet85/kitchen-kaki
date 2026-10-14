@@ -1,3 +1,4 @@
+import { cookL } from './cook';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, Pressable, View } from 'react-native';
 import { KakiBadge } from './Kaki';
@@ -21,7 +22,7 @@ function usePop(delay: number, spring = false) {
 const STEPS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'chatbubble-ellipses-outline', title: 'Tell me what changed', text: 'Type it the way you would say it, like "Dad has a fever" or "no prawns at the shop". Or tap one of the ideas at the bottom.' },
   { icon: 'swap-horizontal-outline', title: 'I rework the menu', text: "I swap the affected dishes for ones that fit, using what's already in the kitchen where I can, and add anything new to the shopping run." },
-  { icon: 'checkmark-circle-outline', title: 'You have the final say', text: 'Look at my suggestion, then tap "Make these changes". Your helper will see a note about what changed.' },
+  { icon: 'checkmark-circle-outline', title: 'You have the final say', text: `Look at my suggestion, then tap "Make these changes". Your ${cookL()} will see a note about what changed.` },
 ];
 
 function Step({ icon, title, text, delay }: { icon: IconName; title: string; text: string; delay: number }) {

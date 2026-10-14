@@ -1,3 +1,4 @@
+import { cook, cookL } from '../cook';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { CATALOGUE } from '../data/store';
@@ -30,9 +31,9 @@ export default function HelperScreen() {
   const now = useTimerTick();
 
   return (
-    <Screen eyebrow={family?.role === 'helper' ? undefined : "Helper's phone"} title={t('title', lang)}>
+    <Screen eyebrow={family?.role === 'helper' ? undefined : `${cook()}'s phone`} title={t('title', lang)}>
       <TimerTray lang={lang} now={now} />
-      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 6 }}>{family?.role === 'helper' ? 'Pick your language:' : 'The helper only sees a menu after you confirm it. Pick their language:'}</Text>
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 6 }}>{family?.role === 'helper' ? 'Pick your language:' : `The ${cookL()} only sees a menu after you confirm it. Pick their language:`}</Text>
       <Row style={{ marginTop: 10 }}>
         {LANGS.map((l) => (
           <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />
