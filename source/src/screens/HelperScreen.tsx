@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { CATALOGUE } from '../data/store';
 import { recipeById } from '../data/recipes';
-import { recipeText } from '../ai/text';
+import { recipeText, ingredientLabel, fullyTranslated, itemNames } from '../ai/text';
 import GeminiTranslate from '../ai/GeminiTranslate';
-import { ShoppingLine, ballpark, roughMoney, shoppingDone, shoppingList, shoppingProgress } from '../engine/grocery';
+import { ShoppingLine, planRecipeIds, ballpark, roughMoney, shoppingDone, shoppingList, shoppingProgress } from '../engine/grocery';
 import { mildTip } from '../engine/health';
+import { dayLabel } from '../i18n-units';
+import { qtyLabel } from '../i18n-units';
 import { DAY_NAMES, dishKey, householdSpiceCap, isCooked } from '../engine/planner';
 import { LANGS, t } from '../i18n';
 import { newId, useApp } from '../state';
@@ -44,7 +46,7 @@ export default function HelperScreen() {
           <KakiSays>{t('hello', lang)}</KakiSays>
           <ChangeNotes lang={lang} />
           {lang !== 'en' && <GeminiTranslate lang={lang} />}
-          {lang !== 'en' && plan.dishes.some((d) => !recipeText(recipeById(d.recipeId), lang, state).stepsTranslated) && (
+          {lang !== 'en' && planRecipeIds(plan).some((id) => !fullyTranslated(recipeById(id), lang, state)) && (
             <View style={{ maxWidth: 520 }}><Notice tone="warn" icon="language-outline">{t('stepsEnglish', lang)}</Notice></View>
           )}
           <View style={{ flexDirection: 'row', marginTop: 16, backgroundColor: '#F3E7D4', borderRadius: 14, padding: 4, maxWidth: 520 }}>
@@ -75,7 +77,7 @@ function Recipes({ lang }: { lang: Lang }) {
   const plan = state.plan!;
   const spiceCap = householdSpiceCap(state.members).cap;
   const { cols } = useLayout();
-  const renderDish = (d: (typeof plan.dishes)[number]) => {
+  const renderDish = (d: (typeof plan.dishes)[number], meal?: 'breakfast' | 'lunch') => {
         const r = recipeById(d.recipeId);
         const tr = recipeText(r, lang, state);
         const cooked = isCooked(plan, d);
@@ -85,14 +87,15 @@ function Recipes({ lang }: { lang: Lang }) {
         const inProgress = !cooked && prog && prog.step >= 0;
         return (
           <View key={key}>
-            <Card style={{ marginTop: 8, padding: 14 }}>
+            {meal && <Text style={{ marginTop: 10, color: C.muted, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1 }}>{t(meal, lang).toUpperCase()}</Text>}
+            <Card style={{ marginTop: meal ? 2 : 8, padding: 14 }}>
               <Pressable onPress={() => setOpen(expanded ? null : key)}>
                 <Row style={{ flexWrap: 'nowrap', gap: 12 }}>
                   <DishPhoto recipe={r} size={60} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontFamily: F.display, fontSize: 16, lineHeight: 21 }}>{tr.name}</Text>
                     <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
-                      {lang !== 'en' && tr.name !== r.name ? `${r.name} · ` : ''}{r.minutes} {t('minutes', lang)} · {chillies(r.spice)}
+                      {r.minutes} {t('minutes', lang)} · {chillies(r.spice)}
                     </Text>
                     {!cooked && (() => {
                       const missing = r.ingredients.filter((i) => !PANTRY.has(i.item) && !state.bought.includes(i.item) && !state.shopSwaps?.[i.item]);
@@ -130,11 +133,11 @@ function Recipes({ lang }: { lang: Lang }) {
                 <View>
                   <DishPhoto recipe={r} banner height={190} placeholder style={{ marginTop: 12, marginBottom: 0 }} />
                   <Label>{t('ingredients', lang)}</Label>
-                  {r.ingredients.map((i) => (
+                  {r.ingredients.map((i, ix) => (
                     <Row key={i.item} style={{ flexWrap: 'nowrap', paddingVertical: 3 }}>
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.brand }} />
-                      <Text style={{ flex: 1 }}>{CATALOGUE[i.item]?.name ?? i.item}</Text>
-                      <Text style={{ color: C.muted }}>{i.qty}</Text>
+                      <Text style={{ flex: 1 }}>{ingredientLabel(r, ix, lang, state)}</Text>
+                      <Text style={{ color: C.muted }}>{qtyLabel(i.qty, lang)}</Text>
                     </Row>
                   ))}
                   <Label>{t('steps', lang)}</Label>
@@ -159,7 +162,8 @@ function Recipes({ lang }: { lang: Lang }) {
           </View>
         );
   };
-  const days = [...new Set(plan.dishes.map((d) => d.day))];
+  const days = [...new Set([...plan.dishes.map((d) => d.day), ...(plan.meals ?? []).map((m) => m.day)])].sort((a, b) => a - b);
+  const hasMeals = (plan.meals ?? []).length > 0;
 
   return (
     <>
@@ -167,8 +171,10 @@ function Recipes({ lang }: { lang: Lang }) {
       <Grid cols={Math.min(3, cols(300))}>
         {days.map((day) => (
           <View key={day}>
-            <Text style={{ fontFamily: F.display, fontSize: 18, marginTop: 22 }}>{DAY_NAMES[day]}</Text>
-            {plan.dishes.filter((d) => d.day === day).map(renderDish)}
+            <Text style={{ fontFamily: F.display, fontSize: 18, marginTop: 22 }}>{dayLabel(day, lang, DAY_NAMES)}</Text>
+            {(plan.meals ?? []).filter((m) => m.day === day).sort((a, b) => (a.meal === 'breakfast' ? 0 : 1) - (b.meal === 'breakfast' ? 0 : 1)).map((m) => renderDish({ recipeId: m.recipeId, day: m.day, isNew: false }, m.meal))}
+            {hasMeals && plan.dishes.some((d) => d.day === day) && <Text style={{ marginTop: 10, color: C.muted, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1 }}>{t('dinner', lang).toUpperCase()}</Text>}
+            {plan.dishes.filter((d) => d.day === day).map((d) => renderDish(d))}
           </View>
         ))}
       </Grid>
@@ -181,7 +187,9 @@ function Shopping({ lang }: { lang: Lang }) {
   const [picking, setPicking] = useState<string | null>(null);
   const swaps = state.shopSwaps ?? {};
   const plan = state.plan!;
-  const lines = shoppingList(plan.dishes.map((d) => d.recipeId));
+  const itemTr = itemNames(lang, state, planRecipeIds(plan).map((id) => recipeById(id)));
+  const dishTr = Object.fromEntries(planRecipeIds(plan).map((id) => [recipeById(id).name, recipeText(recipeById(id), lang, state).name]));
+  const lines = shoppingList(planRecipeIds(plan));
   const fresh = lines.filter((l) => !l.pantry);
   const pantry = lines.filter((l) => l.pantry);
   const total = fresh.reduce((a, l) => a + l.info.price, 0);
@@ -215,11 +223,11 @@ function Shopping({ lang }: { lang: Lang }) {
           <Icon name={skipped ? 'remove-circle-outline' : done ? 'checkbox' : 'square-outline'} size={22} color={skipped ? C.faint : done ? C.brand : C.faint} />
           <View style={{ flex: 1 }}>
             <Row style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
-              <Text style={{ flex: 1, fontWeight: '700', color: done || swap ? C.faint : C.ink, textDecorationLine: done || swap ? 'line-through' : 'none' }}>{l.info.name}</Text>
+              <Text style={{ flex: 1, fontWeight: '700', color: done || swap ? C.faint : C.ink, textDecorationLine: done || swap ? 'line-through' : 'none' }}>{itemTr[l.item] ?? l.info.name}</Text>
               {(state.lateItems ?? []).includes(l.item) && !done && <View style={{ marginRight: 8 }}><Chip tone="new" icon="sparkles" label={t('newItem', lang)} /></View>}
               <Text style={{ fontWeight: '600', color: done ? C.faint : C.ink }}>{roughMoney(l.info.price)}</Text>
             </Row>
-            <Text style={{ color: C.muted, fontSize: 12, marginTop: 1 }}>{l.info.pack} · {l.uses.map((u) => u.dish).join(', ')}</Text>
+            <Text style={{ color: C.muted, fontSize: 12, marginTop: 1 }}>{qtyLabel(l.info.pack, lang)} · {l.uses.map((u) => dishTr[u.dish] ?? u.dish).join(', ')}</Text>
             {swap && (
               <Row style={{ marginTop: 6, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
                 <Text style={{ flex: 1, color: swap.to ? C.amber : C.muted, fontSize: 13, fontWeight: '700' }}>
@@ -363,19 +371,19 @@ function ChangeNotes({ lang }: { lang: Lang }) {
           <View key={`${c.day}-${c.to}-${c.kind ?? ''}`}>
             {c.kind ? (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{DAY_NAMES[c.day]}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
                 <Text style={{ fontWeight: '700', ...(c.kind === 'remove' ? { color: C.muted, textDecorationLine: 'line-through' as const } : {}) }}>{recipeText(recipeById(c.to), lang, state).name}</Text>
                 {`  ·  ${c.kind === 'add' ? t('dishAdded', lang) : t('dishCancelled', lang)}`}
               </Text>
             ) : c.to === c.from ? (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{DAY_NAMES[c.day]}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
                 <Text style={{ fontWeight: '700' }}>{recipeText(recipeById(c.to), lang, state).name}</Text>
                 {` · ${t('cookLighter', lang)}: ${(c.how ?? []).map((h) => t(h, lang)).join(', ')}`}
               </Text>
             ) : (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{DAY_NAMES[c.day]}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
                 <Text style={{ color: C.muted, textDecorationLine: 'line-through' }}>{recipeText(recipeById(c.from), lang, state).name}</Text>
                 {'  →  '}
                 <Text style={{ fontWeight: '700' }}>{recipeText(recipeById(c.to), lang, state).name}</Text>

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { useAi } from '../ai/AiProvider';
 import { GeminiError } from '../ai/gemini';
 import { LessonPlanAI, planLessonAI, toCandidate } from '../ai/lesson';
-import { recipeText } from '../ai/text';
+import { dishName, recipeText } from '../ai/text';
 import DishPhoto from '../DishPhoto';
 import { SLOTS, SLOT_ICON, SLOT_LABEL, Slot, methodOf, slotOf } from '../data/methods';
 import { recipeById } from '../data/recipes';
@@ -300,7 +300,7 @@ export function LessonView({ lesson, onClose }: { lesson: Lesson; onClose: () =>
   const [notes, setNotes] = useState(lesson.notes ?? '');
   const lang = state.settings.helperLang;
   const trio = trioOf(lesson);
-  const name = (id: string) => { const r = recipeById(id); return lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name; };
+  const name = (id: string) => { const r = recipeById(id); return dishName(r, lang); };
   const enName = (id: string) => recipeById(id).name;
   const steps = lesson.timeline;
   const both = (a: string, b: string) => (
@@ -379,7 +379,7 @@ function FinishLesson({ lesson, notes, onClose, owner }: { lesson: Lesson; notes
       <Text style={{ color: C.muted, marginTop: 6 }}>{tk('howSure', lang)}{lang !== 'en' ? `\n${tk('howSure', 'en')}` : ''}</Text>
       {trio.map((r) => (
         <Card key={r.id} style={{ padding: 12 }}>
-          <Text style={{ fontFamily: F.display, fontSize: 16 }}>{lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name}</Text>
+          <Text style={{ fontFamily: F.display, fontSize: 16 }}>{dishName(r, lang)}</Text>
           <Stars value={conf[r.id]} onChange={(n) => setConf({ ...conf, [r.id]: n })} lang={lang} />
           {owner && !isMastered(state, r.id) && (
             <View style={{ marginTop: 8 }}>
@@ -473,7 +473,7 @@ export function LessonRow({ lesson, lang, onOpen, actions }: { lesson: Lesson; l
           {trio.map((r) => (
             <Row key={r.id} style={{ gap: 6, flexWrap: 'nowrap' }}>
               <DishPhoto recipe={r} size={30} />
-              <Text style={{ fontSize: 13, fontWeight: '600' }}>{lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600' }}>{dishName(r, lang)}</Text>
             </Row>
           ))}
         </Row>

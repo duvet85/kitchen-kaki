@@ -116,5 +116,7 @@ export const CATALOGUE: Record<string, StoreItem> = {
   'mung-beans': { name: 'Green mung beans', price: 2.2, pack: '500g', aisle: 'Pantry', alternatives: ['Red beans'] },
   pandan: { name: 'Pandan leaves', price: 1.2, pack: '1 bunch', aisle: 'Fruit & Veg', alternatives: ['Pandan essence (a few drops)'] },
   sago: { name: 'Sago pearls', price: 1.6, pack: '400g', aisle: 'Pantry', alternatives: ['Tapioca pearls'] },
+  'bee-hoon': { name: 'Rice vermicelli (bee hoon)', price: 1.8, pack: '400g', aisle: 'Pantry', alternatives: ['Thin rice noodles'] },
+  'yellow-noodles': { name: 'Fresh yellow noodles', price: 1.9, pack: '500g', aisle: 'Chilled', alternatives: ['Dried egg noodles'] },
   mango: { name: 'Ripe mangoes', price: 4.5, pack: '3 pcs', aisle: 'Fruit & Veg', alternatives: ['Frozen mango chunks'] },
 };

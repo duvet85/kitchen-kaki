@@ -8,6 +8,7 @@ import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
 import { DAY_NAMES, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { PlannedDish, Recipe } from '../types';
+import { PotRating } from './PotRating';
 import { Button, C, Chip, F, Icon, IconButton, Label, Notice, Row, Text, chillies, pots } from '../ui';
 import { Sheet, cap } from './FamilyScreen';
 import PhotoControls from './PhotoControls';
@@ -194,6 +195,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ fontFamily: F.display, fontSize: 15 }}>{x.r.name}</Text>
         <Text style={{ color: C.muted, fontSize: 12 }}>{cap(x.r.cuisine)} · {x.r.minutes} min · {chillies(x.r.spice)} · {roughMoney(dishCost(x.r))}</Text>
+        <PotRating recipe={x.r} />
         {!x.blocked && x.after.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[day]} would be: {x.after.join(' · ')}</Text>}
         {x.blocked ? <Text style={{ color: C.amber, fontSize: 12 }}>{x.blocked}</Text> : (
           <Row style={{ gap: 4 }}>

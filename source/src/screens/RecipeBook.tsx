@@ -120,6 +120,21 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** One way of adding a recipe, opened straight from the Home page (no recipe book behind it). */
+export function AddRecipeFlow({ start, onClose }: { start: 'import' | 'search' | 'gemini'; onClose: () => void }) {
+  const [seed, setSeed] = useState<Seed | null>(null);
+  const [imported, setImported] = useState<Draft | null>(null);
+  return (
+    <>
+      {start === 'search' && !seed && <SearchRecipes onClose={onClose} onPick={setSeed} onDraftByName={(q) => setSeed({ text: q, auto: false })} />}
+      {start === 'import' && !seed && !imported && <ImportLink onClose={onClose} onDraft={setImported} onSeed={setSeed} />}
+      {start === 'gemini' && !seed && <AddRecipe onClose={onClose} />}
+      {imported && <AddRecipe initial={imported} onClose={onClose} />}
+      {seed && <AddRecipe seed={seed} onClose={onClose} />}
+    </>
+  );
+}
+
 const SEARCH_LIMIT = 20;
 /** The dish out of a request like "Search for new recipes for chicken rice". */
 const dishOf = (q: string) => q.replace(/^\s*(please\s+)?(search|find|look)( for)?( me)?( some)?( new)?( recipes?)?( for| of)?\s*/i, '').trim() || q.trim();
@@ -323,7 +338,7 @@ function Review({ draft, isEdit, refreshing, onSave, onDiscard, onClose }: { dra
       <Label>Meal type</Label>
       <Row>
         <Chip label="Dinner dish" selected={!r.meal} onPress={() => setR((x) => { const { meal: _m, ...rest } = x; return rest; })} />
-        {([['breakfast', '🍳 Breakfast'], ['drink', '🥤 Drink'], ['dessert', '🍮 Dessert']] as const).map(([m, l]) => <Chip key={m} label={l} selected={r.meal === m} onPress={() => set({ meal: m })} />)}
+        {([['breakfast', '🍳 Breakfast'], ['lunch', '🍱 Lunch'], ['drink', '🥤 Drink'], ['dessert', '🍮 Dessert']] as const).map(([m, l]) => <Chip key={m} label={l} selected={r.meal === m} onPress={() => set({ meal: m })} />)}
       </Row>
       <Label>Spice</Label>
       <Row>{[0, 1, 2, 3].map((n) => <Chip key={n} label={n === 0 ? 'Not spicy' : chillies(n)} selected={r.spice === n} onPress={() => set({ spice: n as Recipe['spice'] })} />)}</Row>
@@ -385,6 +400,7 @@ function ImportLink({ start, refresh, onClose, onDraft, onSeed }: { start?: stri
   const [caption, setCaption] = useState('');
   const [account, setAccount] = useState('');
   const acct = instagramAccount(account);
+  const [pasted, setPasted] = useState('');
 
   const run = async () => {
     if (!family || !link) return;
@@ -393,9 +409,15 @@ function ImportLink({ start, refresh, onClose, onDraft, onSeed }: { start?: stri
     setBusy(true);
     try {
       const imp = await importViaFamily(family, link);
-      if (!imp.found) { setPage(imp); return; }
+      const noMarkup = (p: Imported) => {
+        // the page has no recipe data this app can read: hand its text to Gemini straight away, if there is enough of it
+        if (!refresh && geminiOn && p.text && p.text.length >= 400) {
+          onSeed({ text: p.text, url: p.url, name: p.site, auto: true, image: p.image, ...(youtubeUrl(p.video ?? undefined) ? { video: youtubeUrl(p.video ?? undefined) } : {}) });
+        } else setPage({ ...p, found: false });
+      };
+      if (!imp.found) { noMarkup(imp); return; }
       const d = importedToDraft(imp);
-      if (!d) { setPage({ ...imp, found: false }); return; }
+      if (!d) { noMarkup({ ...imp, found: false }); return; }
       if (refresh) {
         // keep what the owner already checked (cuisine, spice, allergens, flags); take the page's fresh ingredients, steps, time and photo
         const r = d.recipe;
@@ -439,12 +461,22 @@ function ImportLink({ start, refresh, onClose, onDraft, onSeed }: { start?: stri
       {error && <Notice tone="bad" icon="alert-circle">{error}</Notice>}
       {page && !page.found && (
         <View>
-          <Notice tone="warn" icon="document-text-outline">That page doesn't list a recipe in a form this app can read by itself{page.text ? ', but it has text' : ''}.{geminiOn ? ' Gemini can try to find the recipe in the page text. It will rewrite it in its own words, so compare it with the page.' : ' Copy the recipe text and paste it into "Add a recipe with Gemini".'}</Notice>
-          {geminiOn && page.text && <View style={{ marginTop: 8 }}><Button icon="sparkles" label="Read the page with Gemini" onPress={() => onSeed({ text: page.text!, url: page.url, name: page.site, auto: true, image: page.image, ...(youtubeUrl(page.video ?? undefined) ? { video: youtubeUrl(page.video ?? undefined) } : {}) })} /></View>}
-          <View style={{ marginTop: 8 }}><Button kind="ghost" label="Paste the recipe text myself" onPress={() => onSeed({ text: '', url: page.url, auto: false })} /></View>
+          <Notice tone="warn" icon="document-text-outline">{page.text && page.text.length >= 400 ? "That page doesn't list a recipe in a form this app can read by itself, but it has text." : "That page has almost no readable text: it probably loads the recipe with scripts, which this app can't run."}{geminiOn ? (page.text && page.text.length >= 400 ? ' Gemini can try to find the recipe in the page text. It will rewrite it in its own words, so compare it with the page.' : ' Open the page, copy the recipe text and paste it below.') : ' Copy the recipe text and paste it into "Add a recipe with Gemini".'}</Notice>
+          {geminiOn && page.text && page.text.length >= 400 && <View style={{ marginTop: 8 }}><Button icon="sparkles" label="Read the page with Gemini" onPress={() => onSeed({ text: page.text!, url: page.url, name: page.site, auto: true, image: page.image, ...(youtubeUrl(page.video ?? undefined) ? { video: youtubeUrl(page.video ?? undefined) } : {}) })} /></View>}
         </View>
       )}
-      {!insta && error && link && <View style={{ marginTop: 8 }}><Button kind="ghost" label="Paste the recipe text instead" onPress={() => onSeed({ text: '', url: link, auto: false })} /></View>}
+      {!insta && link && (!!error || (!!page && !page.found && !(page.text && page.text.length >= 400))) && (
+        <View>
+          <Label>Or paste the recipe text from the page</Label>
+          <TextInput value={pasted} onChangeText={setPasted} multiline maxLength={4000} editable={geminiOn} placeholder="Open the page, copy the ingredients and steps, and paste them here"
+            placeholderTextColor={C.faint} accessibilityLabel="Recipe text from the page" style={[input, { minHeight: 120, textAlignVertical: 'top' }]} />
+          <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Only this text goes to Gemini, plus the grocery list. The link is saved as the source.</Text>
+          <View style={{ marginTop: 8 }}>
+            <Button icon="sparkles" label="Turn the text into a recipe" disabled={!geminiOn || pasted.trim().length < 20}
+              onPress={() => onSeed({ text: pasted.trim(), url: link, auto: true })} />
+          </View>
+        </View>
+      )}
       {!insta && <View style={{ marginTop: 14 }}>
         {busy ? <Row style={{ gap: 10 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>Reading the page…</Text></Row>
           : <Button icon="download-outline" label={refresh ? 'Check the page again' : 'Import recipe'} disabled={!family || !link} onPress={run} />}

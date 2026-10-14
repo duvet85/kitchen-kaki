@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { dishName } from '../ai/text';
 import { Pressable, Share, TextInput, View } from 'react-native';
 import DishPhoto from '../DishPhoto';
 import { recipeById } from '../data/recipes';
@@ -13,7 +14,7 @@ import {
 import { DAY_NAMES, eligibleRecipes } from '../engine/planner';
 import { newId, useApp } from '../state';
 import { Lang, Lesson, Recipe } from '../types';
-import { Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
+import { Button, C, Card, Chip, EmptyState, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
 import { Sheet } from './FamilyScreen';
 import { BadgeRow, FeedbackNote, FeedbackSheet, RankCard, shortDate } from './KitchenTips';
 import { LessonActions, LessonPlanner, LessonRow, LessonView, Stars, lessonDate } from './LessonSheet';
@@ -107,7 +108,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
         <View>
           <Label style={{ marginTop: 22 }}>This week's cooking</Label>
           {cooked.length === 0 ? (
-            <Card><P style={{ color: C.muted }}>Dishes show here once {helper} marks them cooked on the Helper tab.</P></Card>
+            <EmptyState title={`Nothing cooked yet`}>Dishes show here once {helper} marks them cooked on the Helper tab.</EmptyState>
           ) : cooked.map(({ dish, recipe: r, at }) => {
             const m = mastered.get(r.id);
             const conf = state.confidence?.[r.id];
@@ -314,7 +315,7 @@ function HelperKitchen({ preview }: { preview?: () => void }) {
   const mastered = masteredMap(state);
   const cooked = [...cookedSet(state)].map(recipeById).sort((a, b) => Number(mastered.has(b.id)) - Number(mastered.has(a.id)) || a.name.localeCompare(b.name));
   const [rating, setRating] = useState<string | null>(null);
-  const nm = (r: Recipe) => (lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name);
+  const nm = (r: Recipe) => dishName(r, lang);
   const share = async () => { try { await Share.share({ message: recordText(state, lang) }); } catch { /* sharing not available */ } };
 
   return (

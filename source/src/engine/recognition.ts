@@ -1,4 +1,5 @@
 import { BADGES, BadgeKey, OPPOSITE, RANKS, TIP_TEXT, isPraise, tk } from '../i18n-kitchen';
+import { dishName } from '../ai/text';
 import { methodOf } from '../data/methods';
 import { RECIPES, recipeById } from '../data/recipes';
 import { AppState, KitchenEvent, Lang, Recipe, TipTag } from '../types';
@@ -225,7 +226,7 @@ export function recordText(st: AppState, lang: Lang) {
     `${helperOf(st)} · Kitchen Kaki`,
     `${r.rank.name[lang]} · ${pts} ${tk('points', lang)}`,
     '',
-    `${tk('mastered', lang)}: ${mastered.map((m) => (lang === 'en' ? m.name : m.i18n?.[lang]?.name ?? m.name)).join(', ') || '-'}`,
+    `${tk('mastered', lang)}: ${mastered.map((m) => dishName(m, lang)).join(', ') || '-'}`,
     `${tk('badges', lang)}: ${b.join(', ') || '-'}`,
     `${tk('thanksHead', lang)}: ${logOf(st).filter(isThanks).length}`,
     '',

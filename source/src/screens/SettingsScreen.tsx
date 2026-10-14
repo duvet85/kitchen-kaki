@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KakiBadge } from '../Kaki';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { maskKey, useAi } from '../ai/AiProvider';
 import { GeminiError } from '../ai/gemini';
@@ -126,7 +127,7 @@ export default function SettingsScreen() {
             <AskTester />
             </View>
           ) : (
-            <View style={{ marginTop: 6 }}>{form}</View>
+            <View style={{ marginTop: 6 }}>{form}<AskTester /></View>
           )}
         </Card>
         )}
@@ -161,10 +162,10 @@ export default function SettingsScreen() {
       {!helper && <WebRecipes />}
       <Card style={{ marginTop: 22 }}>
         <Row style={{ flexWrap: 'nowrap', gap: 14 }}>
-          <Image source={require('../../assets/logo.png')} style={{ width: 72, height: 72 }} accessibilityLabel="Kitchen Kaki logo" />
+          <KakiBadge size={86} />
           <View style={{ flex: 1 }}>
             <H2 style={{ marginBottom: 2 }}>Kitchen Kaki</H2>
-            <Text style={{ color: C.muted, fontSize: 13 }}>Your kitchen buddy. The logo is original artwork made for this app (brand folder).</Text>
+            <Text style={{ color: C.muted, fontSize: 13 }}>Your smart recipe planner and kitchen companion. The logo and look come from the Claude Design redesign.</Text>
           </View>
         </Row>
         <View style={{ marginTop: 12, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="play-outline" label="Replay the intro" onPress={playSplash} /></View>

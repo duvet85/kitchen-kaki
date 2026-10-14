@@ -15,6 +15,7 @@ import { placeDish } from '../engine/balance';
 import { groceryFit } from '../engine/grocery';
 import { newId, useApp } from '../state';
 import { kakiViaFamily, understandViaFamily } from '../sync/family';
+import { PotRating } from './PotRating';
 import { Button, C, F, Icon, IconButton, Row, Text } from '../ui';
 import DishPhoto from '../DishPhoto';
 import { useTripGate } from './TripConfirm';
@@ -256,6 +257,7 @@ function KakiCard({ m, onApply, onDismiss }: { m: Extract<Msg, { who: 'kplan' }>
           <View style={{ flex: 1 }}>
             {a.kind !== 'add' && <Text style={{ color: C.muted, textDecorationLine: a.kind === 'adapt' ? 'none' : 'line-through', fontSize: 13 }}>{recipeById(a.fromId).name}</Text>}
             {to && <Text style={{ fontFamily: F.display, fontSize: 16 }}>{to.name}</Text>}
+            {to && <PotRating recipe={to} />}
             {a.kind === 'adapt' && <Text style={{ color: C.muted, fontSize: 12 }}>{a.changes.join(', ').replace(/^./, (x) => x.toUpperCase())}</Text>}
           </View>
         </Row>
@@ -298,6 +300,7 @@ function AddCard({ m, onDay, onPick, onDismiss }: { m: Extract<Msg, { who: 'add'
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: F.display, fontSize: 16 }}>{r.name}</Text>
               <Text style={{ color: C.muted, fontSize: 12 }}>{r.minutes} min</Text>
+              <PotRating recipe={r} />
               {notes.map((n) => <Text key={n} style={{ color: C.amber, fontSize: 12 }}>{n}</Text>)}
               {(() => { const b = groceryFit(state, r).toBuy; return b.length ? <Text style={{ color: C.amber, fontSize: 12, fontWeight: '700' }}>🛒 Needs buying: {b.map((k) => CATALOGUE[k]?.name.toLowerCase() ?? k).join(', ')}</Text> : <Text style={{ color: C.green, fontSize: 12, fontWeight: '700' }}>✓ Nothing extra to buy</Text>; })()}
             </View>

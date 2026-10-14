@@ -100,6 +100,22 @@ export function Grid({ cols, gap = 16, children }: { cols: number; gap?: number;
   );
 }
 
+/** The Kitchen Kaki pot (the design's artwork), used for friendly empty states and success moments. */
+export function Mascot({ size = 96 }: { size?: number }) {
+  return <Image source={require('../assets/logo-pot.png')} style={{ width: size, height: size * (661 / 767) }} resizeMode="contain" accessibilityIgnoresInvertColors />;
+}
+
+/** A warm, friendly "nothing here yet" card with the pot. */
+export function EmptyState({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <View style={[s.card, { alignItems: 'center', paddingVertical: 26, paddingHorizontal: 22, backgroundColor: C.brandSoft, overflow: 'hidden', gap: 8 }]}>
+      <Mascot size={110} />
+      {title ? <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink, textAlign: 'center' }}>{title}</Text> : null}
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 420 }}>{children}</Text>
+    </View>
+  );
+}
+
 export function Screen({ eyebrow, title, subtitle, children }: { eyebrow?: string; title: string; subtitle?: string; children: React.ReactNode }) {
   const { isTablet } = useLayout();
   return (
@@ -189,7 +205,7 @@ export function Chip({
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={[s.chip, { backgroundColor: bg, borderColor: border }, onPress && { paddingVertical: 9, paddingHorizontal: 16, borderRadius: R.chip }]}
+      style={[s.chip, { backgroundColor: bg, borderColor: border }, onPress && { paddingVertical: 9, paddingHorizontal: 16, borderRadius: R.chip, minHeight: 40 }]}
     >
       {icon && <Icon name={icon} size={12} color={fg} />}
       <Text style={{ color: fg, fontSize: onPress ? 14 : 12, fontWeight: '600' }}>{label}</Text>
@@ -268,7 +284,7 @@ export const s = StyleSheet.create({
     backgroundColor: C.card, borderRadius: R.card, padding: 16, marginTop: 12, borderWidth: 2, borderColor: C.line,
     shadowColor: '#2F4030', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 1,
   },
-  btn: { borderRadius: R.pill, paddingVertical: 15, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  btn: { borderRadius: R.pill, minHeight: 48, paddingVertical: 15, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: C.brandSoft },
   chip: { borderRadius: 12, paddingVertical: 3, paddingHorizontal: 9, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
   input: { borderWidth: 2, borderColor: C.line, borderRadius: R.field, padding: 13, fontSize: 15, backgroundColor: C.card, color: C.ink, fontFamily: F.medium },

@@ -46,6 +46,9 @@ export function googleReason(status: number, body: string): string {
   return `${status}${msg ? ` ${msg.slice(0, 160)}` : ''}`;
 }
 
+/** Busy or temporarily unavailable on Google's side: worth another try on the same model. */
+export const isBusy = (status: number) => status === 500 || status === 502 || status === 503 || status === 504;
+
 /** One model's result in a "Test Gemini" run. */
 export interface ModelTry { model: string; ok: boolean; status: number; why?: string }
 
@@ -53,6 +56,8 @@ export interface ModelTry { model: string; ok: boolean; status: number; why?: st
 export interface GeminiReport {
   /** text models the key can see, or null if Google's list couldn't be read */
   available: string[] | null;
+  /** why the list couldn't be read, when it couldn't */
+  listError?: string;
   /** the order the app will try */
   order: string[];
   text: ModelTry[];

@@ -28,7 +28,7 @@ const VERDICT = (v: number) =>
 /** Step 5: the family gives each dish one pot rating together. */
 export default function RatingsScreen() {
   const { state, update } = useApp();
-  const thisWeek = [...new Set(state.plan?.status === 'confirmed' ? state.plan.dishes.map((d) => d.recipeId) : [])];
+  const thisWeek = [...new Set(state.plan?.status === 'confirmed' ? [...state.plan.dishes, ...(state.plan.meals ?? [])].map((d) => d.recipeId) : [])];
   const rate = (id: string, stars: number) => update((st) => ({ ...st, ratings: { ...st.ratings, [id]: stars } }));
   const rated = RECIPES.filter((r) => state.ratings[r.id]).sort((a, b) => state.ratings[b.id] - state.ratings[a.id]);
   const kept = rated.filter((r) => state.ratings[r.id] >= DROP_BELOW);

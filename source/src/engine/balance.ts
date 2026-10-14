@@ -1,6 +1,6 @@
 import { recipeById } from '../data/recipes';
 import { AppState, PlannedDish, Recipe } from '../types';
-import { groceryFit, shoppingList } from './grocery';
+import { groceryFit, planRecipeIds, shoppingList } from './grocery';
 import { balanceScore, isFried } from './health';
 import { applyChanges } from './hiccup';
 import { DAY_NAMES, dayAfter, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, missingFavourite, spiceRule } from './planner';
@@ -138,7 +138,7 @@ export function removeDish(st: AppState, target: PlannedDish, newId: () => strin
   const dishes = st.plan.dishes.filter((d) => d !== target);
   if (st.plan.status === 'draft') return { ...st, plan: { ...st.plan, dishes } };
   const key = dishKey(target);
-  const stillNeeded = new Set(shoppingList(dishes.map((d) => d.recipeId)).map((l) => l.item));
+  const stillNeeded = new Set(shoppingList(planRecipeIds({ dishes, meals: st.plan.meals })).map((l) => l.item));
   const { [key]: _gone, ...cooking } = st.cooking;
   return {
     ...st,

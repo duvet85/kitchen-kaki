@@ -1,14 +1,21 @@
 import { Lang } from './types';
+import { ZH_UI } from './i18n-zh';
+
+type Written = Exclude<Lang, 'zh'>;
 
 export const LANGS: { key: Lang; label: string }[] = [
   { key: 'en', label: 'English' },
   { key: 'tl', label: 'Tagalog' },
   { key: 'id', label: 'Bahasa Indonesia' },
   { key: 'my', label: 'မြန်မာ (Burmese)' },
+  { key: 'zh', label: '中文 (Chinese)' },
 ];
 
 /** Labels on the helper's screen. Draft translations for review by native speakers. */
 const UI = {
+  breakfast: { en: 'Breakfast', tl: 'Almusal', id: 'Sarapan', my: 'နံနက်စာ' },
+  lunch: { en: 'Lunch', tl: 'Tanghalian', id: 'Makan siang', my: 'နေ့လည်စာ' },
+  dinner: { en: 'Dinner', tl: 'Hapunan', id: 'Makan malam', my: 'ညစာ' },
   title: { en: "This week's menu", tl: 'Menu ngayong linggo', id: 'Menu minggu ini', my: 'ဒီအပတ် ဟင်းလျာ' },
   ingredients: { en: 'Ingredients', tl: 'Mga sangkap', id: 'Bahan-bahan', my: 'ပါဝင်ပစ္စည်းများ' },
   steps: { en: 'Steps', tl: 'Mga hakbang', id: 'Langkah-langkah', my: 'ချက်ပြုတ်နည်း' },
@@ -68,9 +75,9 @@ const UI = {
   lessSalt: { en: 'use half the sauce and salt', tl: 'kalahati lang ng sarsa at asin', id: 'pakai setengah saus dan garam', my: 'ဆော့စ်နှင့် ဆားကို တစ်ဝက်သာ သုံးပါ' },
   lessOil: { en: 'use less oil and take off the skin and fat', tl: 'bawasan ang mantika at alisin ang balat at taba', id: 'pakai sedikit minyak dan buang kulit serta lemaknya', my: 'ဆီနည်းနည်းသုံးပြီး အရေခွံနှင့် အဆီကို ဖယ်ပါ' },
   useInstead: { en: 'use {use} instead of {need}', tl: 'gamitin ang {use} sa halip na {need}', id: 'pakai {use} sebagai ganti {need}', my: '{need} အစား {use} ကို သုံးပါ' },
-  stepsEnglish: { en: '', tl: 'Nasa Ingles pa ang mga hakbang sa pagluluto hanggang buksan ng amo ang pagsasalin. Ang mga pangalan ng putahe lang ang naisalin.', id: 'Langkah memasak masih dalam bahasa Inggris sampai majikan menyalakan terjemahan. Hanya nama masakan yang diterjemahkan.', my: 'ချက်ပြုတ်နည်းအဆင့်များကို ပိုင်ရှင်က ဘာသာပြန်ကို မဖွင့်မချင်း အင်္ဂလိပ်လိုသာ ပြထားသည်။ ဟင်းအမည်များကိုသာ ဘာသာပြန်ထားသည်။' },
+  stepsEnglish: { en: '', tl: 'Nasa Ingles pa ang mga hakbang at sangkap hanggang buksan ng amo ang pagsasalin. Ang mga pangalan ng putahe lang ang naisalin.', id: 'Langkah dan bahan masih dalam bahasa Inggris sampai majikan menyalakan terjemahan. Hanya nama masakan yang diterjemahkan.', my: 'ချက်ပြုတ်နည်းအဆင့်များနှင့် ပါဝင်ပစ္စည်းများကို ပိုင်ရှင်က ဘာသာပြန်ကို မဖွင့်မချင်း အင်္ဂလိပ်လိုသာ ပြထားသည်။ ဟင်းအမည်များကိုသာ ဘာသာပြန်ထားသည်။' },
   stepDone: { en: 'Step done', tl: 'Tapos ang hakbang', id: 'Langkah selesai', my: 'အဆင့်ပြီးပြီ' },
-} satisfies Record<string, Record<Lang, string>>;
+} satisfies Record<string, Record<Written, string>>;
 
 export const t = (key: keyof typeof UI, lang: Lang, vars: Record<string, string | number> = {}) =>
-  UI[key][lang].replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+  (lang === 'zh' ? ZH_UI[key] ?? UI[key].en : UI[key][lang]).replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));

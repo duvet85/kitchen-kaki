@@ -66,9 +66,9 @@ function CoverFallback({ recipe: r, size }: { recipe: Recipe; size: number }) {
 }
 
 /** Instagram-style view of the recipe book: category tiles, then a photo grid of the dishes in a category. */
-export default function RecipeTiles({ recipes, searching, onOpen }: { recipes: Recipe[]; searching: boolean; onOpen: (r: Recipe) => void }) {
+export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { recipes: Recipe[]; searching: boolean; onOpen: (r: Recipe) => void; /** start on "All": one photo tile for every dish */ allFirst?: boolean }) {
   const { state } = useApp();
-  const [tab, setTab] = useState<Tab>('Types');
+  const [tab, setTab] = useState<Tab | 'All'>(allFirst ? 'All' : 'Types');
   const [open, setOpen] = useState<Group | null>(null);
   const [making, setMaking] = useState(false);
   const hasStock = (r: Recipe) => !!(photoFor(r.id) || r.imageUrl);
@@ -79,13 +79,16 @@ export default function RecipeTiles({ recipes, searching, onOpen }: { recipes: R
       <TileGrid>{(size) => recipes.map((r) => <Tile key={r.id} recipe={r} size={size} label={r.name} heart={favs.has(r.id)} a11y={`Open ${r.name}`} onPress={() => onOpen(r)} />)}</TileGrid>
     );
   }
-  const groups = groupsFor(tab, recipes, state);
+  const groups = tab === 'All' ? [] : groupsFor(tab, recipes, state);
   // keep an open category up to date (a photo or heart can change while it is open)
   const live = open ? groups.find((g) => g.id === open.id) ?? open : null;
   return (
     <View>
-      <Row style={{ marginTop: 12, gap: 6 }}>{TABS.map((t) => <Chip key={t} label={t} selected={tab === t} onPress={() => setTab(t)} />)}</Row>
-      {groups.length === 0 && (
+      <Row style={{ marginTop: 12, gap: 6 }}>{(allFirst ? ['All' as const, ...TABS] : TABS).map((t) => <Chip key={t} label={t} selected={tab === t} onPress={() => setTab(t)} />)}</Row>
+      {tab === 'All' && (
+        <TileGrid>{(size) => recipes.map((r) => <Tile key={r.id} recipe={r} size={size} label={r.name} heart={favs.has(r.id)} a11y={`Open ${r.name}`} onPress={() => onOpen(r)} />)}</TileGrid>
+      )}
+      {tab !== 'All' && groups.length === 0 && (
         <Text style={{ color: C.muted, marginTop: 14, lineHeight: 20 }}>
           {tab === 'Favourites' ? 'Nothing here yet. Open a dish and tap "Add to favourites", or rate dishes 4 stars or more.'
             : tab === 'Mine' ? 'Make your own categories, like "Kids\' favourites" or "Weekend". Then open any dish and tap Categories to put it in one.' : 'Nothing here yet.'}

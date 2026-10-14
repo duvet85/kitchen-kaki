@@ -1,4 +1,7 @@
 import { Lang, TipTag } from './types';
+import { ZH_BADGE, ZH_K, ZH_RANK, ZH_TIP } from './i18n-zh';
+
+type Written = Exclude<Lang, 'zh'>;
 
 /**
  * Words the helper sees in the Kitchen tab: thanks, tips, ranks, badges and lessons.
@@ -61,14 +64,14 @@ const K = {
   wokKnife: { en: 'Cut everything small and the same size, and have it all ready before you turn on the fire.', tl: 'Hiwain nang maliit at pare-pareho, at ihanda lahat bago buksan ang apoy.', id: 'Potong semua kecil dan sama besar, dan siapkan semuanya sebelum menyalakan api.', my: 'အားလုံးကို သေးသေးနှင့် အရွယ်တူ လှီးပြီး မီးမဖွင့်မီ အဆင်သင့်ထားပါ။' },
   wokHeat: { en: 'Very hot wok, cook fast and keep tossing. Garlic burns quickly, so watch it.', tl: 'Napakainit na kawali, lutuin nang mabilis at laging haluin. Mabilis masunog ang bawang, kaya bantayan.', id: 'Wajan sangat panas, masak cepat dan terus diaduk. Bawang putih cepat gosong, jadi perhatikan.', my: 'ဒယ်အိုး အလွန်ပူပါစေ၊ မြန်မြန်ချက်ပြီး အမြဲမွှေပါ။ ကြက်သွန်ဖြူ မြန်မြန်တူးတတ်သဖြင့် သတိထားပါ။' },
   byGemini: { en: 'Tips drafted by Gemini, not checked by a cook', tl: 'Mga tip na ginawa ng Gemini, hindi pa nasusuri ng kusinero', id: 'Tips dibuat Gemini, belum dicek juru masak', my: 'Gemini ရေးထားသော အကြံပြုချက်များ၊ စားဖိုမှူး မစစ်ရသေးပါ' },
-} satisfies Record<string, Record<Lang, string>>;
+} satisfies Record<string, Record<Written, string>>;
 
 export type KKey = keyof typeof K;
 export const tk = (key: KKey, lang: Lang, vars: Record<string, string | number> = {}) =>
-  K[key][lang].replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+  (lang === 'zh' ? ZH_K[key] ?? K[key].en : K[key][lang]).replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
 /** Praise and tips as the helper reads them. The owner picks them as chips (TIP_CHIP). */
-export const TIP_TEXT: Record<TipTag, Record<Lang, string>> = {
+const TIP_WRITTEN: Record<TipTag, Record<Written, string>> = {
   delicious: { en: 'That was delicious!', tl: 'Ang sarap nito!', id: 'Enak sekali!', my: 'အရမ်းစားကောင်းတယ်!' },
   justright: { en: 'Just right, the way we like it.', tl: 'Tamang-tama, gaya ng gusto namin.', id: 'Pas sekali, seperti yang kami suka.', my: 'ကျွန်ုပ်တို့ကြိုက်သလို အနေတော်ပဲ။' },
   kidsloved: { en: 'The kids loved it.', tl: 'Gustong-gusto ito ng mga bata.', id: 'Anak-anak sangat suka.', my: 'ကလေးတွေ အရမ်းကြိုက်ကြတယ်။' },
@@ -84,6 +87,8 @@ export const TIP_TEXT: Record<TipTag, Record<Lang, string>> = {
   smaller: { en: 'Cut the pieces smaller.', tl: 'Hiwain nang mas maliit.', id: 'Potong lebih kecil.', my: 'အပိုင်းအစများကို ပိုသေးအောင် လှီးပါ။' },
 };
 
+export const TIP_TEXT = Object.fromEntries(Object.entries(TIP_WRITTEN).map(([k, v]) => [k, { ...v, zh: ZH_TIP[k] ?? v.en }])) as Record<TipTag, Record<Lang, string>>;
+
 export const PRAISE: TipTag[] = ['delicious', 'justright', 'kidsloved', 'thanks'];
 export const TIPS: TipTag[] = ['salty', 'bland', 'spicy', 'mild', 'oily', 'sweet', 'undercooked', 'overcooked', 'smaller'];
 export const isPraise = (x: TipTag) => PRAISE.includes(x);
@@ -97,7 +102,7 @@ export const TIP_CHIP: Record<TipTag, string> = {
 export const OPPOSITE: Partial<Record<TipTag, TipTag>> = { salty: 'bland', bland: 'salty', spicy: 'mild', mild: 'spicy', undercooked: 'overcooked', overcooked: 'undercooked' };
 
 /** Ranks, lowest first. They never go down. */
-export const RANKS: { from: number; name: Record<Lang, string>; meaning: string }[] = [
+const RANKS_WRITTEN: { from: number; name: Record<Written, string>; meaning: string }[] = [
   { from: 0, name: { en: 'Home Cook', tl: 'Home Cook', id: 'Juru Masak Rumah', my: 'အိမ်ချက် စားဖိုမှူး' }, meaning: "Starting out in the family's kitchen" },
   { from: 150, name: { en: 'Trusted Cook', tl: 'Pinagkakatiwalaang Kusinero', id: 'Juru Masak Terpercaya', my: 'ယုံကြည်ရသော စားဖိုမှူး' }, meaning: 'The family relies on her everyday cooking' },
   { from: 400, name: { en: 'Skilled Cook', tl: 'Bihasang Kusinero', id: 'Juru Masak Terampil', my: 'ကျွမ်းကျင်သော စားဖိုမှူး' }, meaning: "Cooks a wide range of the family's dishes well" },
@@ -105,8 +110,10 @@ export const RANKS: { from: number; name: Record<Lang, string>; meaning: string 
   { from: 1500, name: { en: 'Head Cook of the House', tl: 'Punong Kusinero ng Bahay', id: 'Kepala Juru Masak Rumah', my: 'အိမ်၏ စားဖိုမှူးချုပ်' }, meaning: 'Runs the family kitchen with confidence' },
 ];
 
+export const RANKS: { from: number; name: Record<Lang, string>; meaning: string }[] = RANKS_WRITTEN.map((r, i) => ({ ...r, name: { ...r.name, zh: ZH_RANK[i] ?? r.name.en } }));
+
 export type BadgeKey = 'firstLesson' | 'soups' | 'slow' | 'wok' | 'favourite' | 'explorer' | 'steady' | 'cuisines' | 'thanked';
-export const BADGES: Record<BadgeKey, { icon: string; name: Record<Lang, string>; how: string }> = {
+const BADGES_WRITTEN: Record<BadgeKey, { icon: string; name: Record<Written, string>; how: string }> = {
   firstLesson: { icon: '🎓', name: { en: 'First Lesson', tl: 'Unang Aralin', id: 'Pelajaran Pertama', my: 'ပထမ သင်ခန်းစာ' }, how: 'First cooking lesson finished' },
   soups: { icon: '🍲', name: { en: 'Soup Specialist', tl: 'Eksperto sa Sabaw', id: 'Ahli Sup', my: 'ဟင်းချို ကျွမ်းကျင်သူ' }, how: '3 soups mastered' },
   slow: { icon: '♨️', name: { en: 'Steam & Braise', tl: 'Steam at Braise', id: 'Kukus & Ungkep', my: 'ပေါင်းနှင့် နှပ်' }, how: '3 steamed or braised dishes mastered' },
@@ -117,3 +124,4 @@ export const BADGES: Record<BadgeKey, { icon: string; name: Record<Lang, string>
   cuisines: { icon: '🌏', name: { en: 'Three Kitchens', tl: 'Tatlong Kusina', id: 'Tiga Dapur', my: 'မီးဖိုချောင် သုံးမျိုး' }, how: 'Dishes mastered in 3 different cuisines' },
   thanked: { icon: '💐', name: { en: 'Well Thanked', tl: 'Maraming Pasasalamat', id: 'Banyak Terima Kasih', my: 'ကျေးဇူးတင်ခံရသူ' }, how: '25 thank-you notes received' },
 };
+export const BADGES = Object.fromEntries(Object.entries(BADGES_WRITTEN).map(([k, v]) => [k, { ...v, name: { ...v.name, zh: ZH_BADGE[k as BadgeKey] ?? v.name.en } }])) as Record<BadgeKey, { icon: string; name: Record<Lang, string>; how: string }>;

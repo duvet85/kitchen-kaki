@@ -19,7 +19,7 @@ export interface LessonPlanAI {
   tipsTr?: Record<string, { knife: string[]; heat: string[] }>;
 }
 
-const LANG_FULL: Record<Lang, string> = { en: 'English', tl: 'Tagalog (Filipino)', id: 'Bahasa Indonesia', my: 'Burmese (Myanmar script, Unicode)' };
+const LANG_FULL: Record<Lang, string> = { en: 'English', tl: 'Tagalog (Filipino)', id: 'Bahasa Indonesia', my: 'Burmese (Myanmar script, Unicode)', zh: 'Simplified Chinese (简体中文, as used in Singapore)' };
 
 export const LESSON_PROMPT = (dishes: LessonCandidate[], lang: Lang) => [
   'A family in Singapore will teach their domestic helper three home dishes in one 2-hour cooking lesson: one soup (slot "soup"), one steamed or braised dish (slot "slow") and one stir-fry (slot "wok").',

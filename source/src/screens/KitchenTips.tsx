@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { dishName } from '../ai/text';
 import { Pressable, TextInput, View } from 'react-native';
 import { useAi } from '../ai/AiProvider';
 import { translateRecipe } from '../ai/gemini';
@@ -14,7 +15,6 @@ import { BadgeMedal, RankMedal } from '../KakiMedal';
 import { KakiSticker, StickerKey, isSticker, randomSticker } from '../KakiScenes';
 import { Sheet } from './FamilyScreen';
 
-const dishName = (r: Recipe, lang: Lang) => (lang === 'en' ? r.name : r.i18n?.[lang]?.name ?? r.name);
 export const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** In cooking mode: what the family asked to remember for this dish, and any new tip, in the helper's language. */

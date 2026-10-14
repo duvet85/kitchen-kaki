@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { playSplash } from '../Splash';
 import { ActivityIndicator, Platform, Pressable, Share, TextInput, View } from 'react-native';
 import { useApp } from '../state';
 import {
-  FamilyConfig, FamilyError, Member, createFamily, decodeInvite, encodeInvite, familyInfo, joinFamily, leaveFamily, removeMember, resetInvites,
+  FamilyConfig, FamilyError, Member, checkConnection, createFamily, decodeInvite, encodeInvite, familyInfo, joinFamily, leaveFamily, removeMember, resetInvites,
 } from '../sync/family';
 import { Avatar, Button, C, Card, Chip, H2, Icon, Label, Notice, Row, Text, s } from '../ui';
 
@@ -50,12 +49,18 @@ function NotConnected() {
         : await joinFamily(invite, myName);
       if (Platform.OS === 'web' && fromLink) window.history.replaceState(null, '', window.location.pathname);
       setFamily(cfg);
-      playSplash();
     } catch (e) {
-      setError(e instanceof FamilyError ? e.message : 'Something went wrong. Check the details and try again.');
+      setError(e instanceof FamilyError ? e.message : `Something went wrong${e instanceof Error && e.message ? `: ${e.message}` : ''}. Tap "Check connection" to see what Supabase says.`);
     } finally {
       setBusy(false);
     }
+  };
+  const [checked, setChecked] = useState<string | null>(null);
+  const check = async () => {
+    setBusy(true); setError(null); setChecked(null);
+    try { await checkConnection(url, key); setChecked('Connected to your Supabase project. Now fill in the names and tap Create family.'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not connect.'); }
+    finally { setBusy(false); }
   };
   const ok = myName.trim() && (mode === 'create' ? url.trim() && key.trim().length > 20 : decodeInvite(invite));
 
@@ -95,6 +100,8 @@ function NotConnected() {
       {mode === 'create' && <Text style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>The menu and family already on this phone become the shared copy.</Text>}
       {mode === 'join' && <Text style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>The family's shared menu replaces what is on this phone.</Text>}
       {error && <Text style={{ color: C.red, fontSize: 13, marginTop: 10 }}>{error}</Text>}
+      {checked && <Text style={{ color: C.green, fontSize: 13, marginTop: 10, fontWeight: '600' }}>{checked}</Text>}
+      {mode === 'create' && url.trim() && key.trim() ? <View style={{ marginTop: 10, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="pulse-outline" label="Check connection" onPress={check} disabled={busy} /></View> : null}
       <View style={{ marginTop: 14, alignSelf: 'flex-start' }}>
         {busy
           ? <Row style={{ gap: 8 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>Connecting…</Text></Row>
