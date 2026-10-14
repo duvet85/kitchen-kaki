@@ -17,6 +17,7 @@ import { KakiSays } from '../Kaki';
 import { Lang } from '../types';
 import { PANTRY } from '../engine/grocery';
 import { Bar, Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, Thumb, chillies, useLayout } from '../ui';
+import { DishHistory } from './LearnCook';
 import CookingMode, { TimerTray, useTimerTick } from './CookingMode';
 
 const AISLES = ['Meat & Seafood', 'Fruit & Veg', 'Chilled', 'Pantry'] as const;
@@ -98,6 +99,7 @@ function Recipes({ lang }: { lang: Lang }) {
                     <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
                       {r.minutes} {t('minutes', lang)} · {chillies(r.spice)}
                     </Text>
+                    <DishHistory recipeId={r.id} lang={lang} />
                     {!cooked && (() => {
                       const missing = r.ingredients.filter((i) => !PANTRY.has(i.item) && !state.bought.includes(i.item) && !state.shopSwaps?.[i.item]);
                       return (

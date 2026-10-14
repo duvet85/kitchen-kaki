@@ -13,6 +13,9 @@ import { Bar, Button, C, F, Icon, IconButton, Label, Row, Text, useLayout } from
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { recordCooked } from '../engine/recognition';
 import { FamilyTipBanner } from './KitchenTips';
+import { ConfidenceCheck, DishHistory, LastTime, StepExtras } from './LearnCook';
+import { baseId, recordTry } from '../engine/learn';
+import { Difficulty } from '../types';
 
 /** Minutes mentioned in an English step ("40 minutes", "12 to 15 minutes", "2 hours"). Uses the upper bound. */
 export function stepMinutes(step: string): number | null {
@@ -126,6 +129,13 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
   const timerForStep = state.timers.find((x) => x.recipeId === recipeId && x.step === i);
   const big = isTablet ? 1.35 : 1;
 
+  // Learn While You Cook: every step is always shown, with its safety note, tip and why
+  const learnId = baseId(recipeId);
+  const order = steps.map((_, k) => k);
+  const nextStep = order.find((k) => k > i);
+  const prevStep = [...order].reverse().find((k) => k < i);
+  const [asking, setAsking] = useState(false);
+
   const startTimer = (min: number) =>
     update((st) => ({
       ...st,
@@ -137,12 +147,14 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
 
   const next = () => {
     const done = i >= 0 && !prog.done.includes(i) ? [...prog.done, i] : prog.done;
-    setProg({ step: i + 1, done });
+    setProg({ step: nextStep ?? i + 1, done });
   };
-  const finish = () => {
+  const finish = (result?: { conf?: number; hard: Difficulty[] }) => {
     update((st) => {
       // Kitchen tab: remember when it was cooked (a first-time dish, cooked on its day) before ticking it off.
-      const was = st.plan && !st.plan.cooked.includes(recipeId) ? recordCooked(st, recipeId, newId) : st;
+      const first = !!st.plan && !st.plan.cooked.includes(recipeId);
+      let was = first ? recordCooked(st, recipeId, newId) : st;
+      if (first || result) was = recordTry(was, recipeId, result);
       return {
         ...was,
         cooking: { ...was.cooking, [recipeId]: { step: steps.length - 1, done: steps.map((_, k) => k) } },
@@ -152,7 +164,7 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
     });
     onClose();
   };
-  const last = i === steps.length - 1;
+  const last = i >= 0 && nextStep === undefined;
 
   const header = (
     <Row style={{ paddingHorizontal: twoPane ? 28 : 16, paddingTop: 8, flexWrap: 'nowrap', gap: 12 }}>
@@ -168,8 +180,8 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
   // Step tracker: one segment per step, filled when ticked off
   const tracker = (
     <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: twoPane ? 28 : 16, marginTop: 12 }}>
-      {steps.map((_, k) => (
-        <Pressable key={k} onPress={() => setProg({ ...prog, step: k })} accessibilityLabel={t('stepOf', lang, { n: k + 1, m: steps.length })}
+      {order.map((k) => (
+        <Pressable key={k} onPress={() => setProg({ ...prog, step: k })} accessibilityLabel={t('stepOf', lang, { n: order.indexOf(k) + 1, m: order.length })}
           style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: prog.done.includes(k) ? C.brand : k === i ? C.accent : C.line }} />
       ))}
     </View>
@@ -189,7 +201,7 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
 
   const stepList = (
     <View>
-      {steps.map((st, k) => (
+      {order.map((k) => ({ st: steps[k], k })).map(({ st, k }) => (
         <Pressable key={k} onPress={() => setProg({ ...prog, step: k })}
           style={{ flexDirection: 'row', gap: 10, paddingVertical: twoPane ? 10 : 6, paddingHorizontal: twoPane ? 10 : 0, borderRadius: 12, backgroundColor: twoPane && k === i ? C.accentSoft : 'transparent' }}>
           <Icon name={prog.done.includes(k) ? 'checkmark-circle' : k === i ? 'radio-button-on' : 'ellipse-outline'} size={20} color={prog.done.includes(k) ? C.brand : k === i ? C.accent : C.faint} />
@@ -204,13 +216,16 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
       {!twoPane && <DishPhoto recipe={r} banner height={short ? 120 : 200} />}
       <Text style={{ fontFamily: F.display, fontSize: 24 * big }}>{t('ingredientsReady', lang)}</Text>
       {!twoPane && ingredients}
+      <DishHistory recipeId={learnId} lang={lang} />
+      <LastTime hard={state.learning?.tries?.[learnId]?.hard ?? []} lang={lang} />
     </View>
   ) : (
     <View style={{ marginTop: 16 }}>
       <Text style={{ color: C.accent, fontWeight: '800', fontSize: 13 * big, letterSpacing: 1 }}>
-        {t('stepOf', lang, { n: i + 1, m: steps.length }).toUpperCase()}
+        {t('stepOf', lang, { n: order.indexOf(i) + 1, m: order.length }).toUpperCase()}
       </Text>
       <Text style={{ fontSize: 24 * big, lineHeight: 34 * big, fontWeight: '600', marginTop: 8 }}>{steps[i]}</Text>
+      <StepExtras recipeId={learnId} step={i} lang={lang} />
       {mins !== null && !timerForStep && (
         <View style={{ marginTop: 20, alignSelf: twoPane ? 'flex-start' : 'stretch', minWidth: twoPane ? 320 : undefined }}>
           <Button icon="timer-outline" label={t('startTimer', lang, { t: fmtLen(mins) })} kind="ghost" onPress={() => startTimer(mins)} />
@@ -221,10 +236,10 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
 
   const footer = (
     <View style={{ flexDirection: 'row', gap: 10, padding: short ? 10 : 16, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
-      {i >= 0 && <View style={{ flex: 1 }}><Button kind="ghost" icon="arrow-back" label={t('back', lang)} onPress={() => setProg({ ...prog, step: i - 1 })} /></View>}
+      {i >= 0 && <View style={{ flex: 1 }}><Button kind="ghost" icon="arrow-back" label={t('back', lang)} onPress={() => setProg({ ...prog, step: prevStep ?? -1 })} /></View>}
       <View style={{ flex: 2 }}>
         {last
-          ? <Button icon="checkmark-done" label={t('finish', lang)} onPress={finish} />
+          ? <Button icon="checkmark-done" label={t('finish', lang)} onPress={() => setAsking(true)} />
           : <Button icon={i < 0 ? 'flame' : 'arrow-forward'} label={i < 0 ? t('startCooking', lang) : t('next', lang)} onPress={next} />}
       </View>
     </View>
@@ -275,6 +290,7 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
             {footer}
           </View>
         )}
+        {asking && <ConfidenceCheck lang={lang} initial={state.confidence?.[learnId]} onSave={finish} onSkip={() => finish()} />}
       </SafeAreaView>
     </Modal>
   );

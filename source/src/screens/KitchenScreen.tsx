@@ -18,6 +18,7 @@ import { Lang, Lesson, Recipe } from '../types';
 import { Button, C, Card, Chip, EmptyState, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
 import { Sheet } from './FamilyScreen';
 import { BadgeRow, FeedbackNote, FeedbackSheet, RankCard, shortDate } from './KitchenTips';
+import { HARD_TEXT } from '../data/learn';
 import { LessonActions, LessonPlanner, LessonRow, LessonView, Stars, lessonDate } from './LessonSheet';
 
 /**
@@ -126,6 +127,13 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
                     </Row>
                   </View>
                 </Row>
+                {state.learning?.tries?.[r.id] && (
+                  <Text style={{ color: C.muted, fontSize: 13, marginTop: 8, lineHeight: 19 }}>
+                    {`Cooked ${state.learning.tries[r.id].n}× with the app. `}
+                    {conf ? `${Helper} says she feels ${pots(conf)} sure. ` : ''}
+                    {state.learning.tries[r.id].hard.length ? `She found these tricky: ${state.learning.tries[r.id].hard.map((h) => HARD_TEXT[h].label.en.toLowerCase()).join(', ')}.` : ''}
+                  </Text>
+                )}
                 <Row style={{ marginTop: 10 }}>
                   <Button small icon="heart" label="Say thanks" onPress={() => setFeedback({ recipe: r, mode: 'thanks' })} />
                   <Button small kind="ghost" icon="bulb-outline" label="Tip for next time" onPress={() => setFeedback({ recipe: r, mode: 'tip' })} />
@@ -144,7 +152,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
         </View>
 
         <View>
-          <Label style={{ marginTop: 22 }}>Cooking lessons</Label>
+          <Label style={{ marginTop: 22 }}>Cooking Academy (optional lessons)</Label>
           {upcoming.map((l) => (
             <LessonRow key={l.id} lesson={l} lang="en" onOpen={() => setViewing(l)}
               actions={<Row style={{ marginTop: 10 }}><Button small kind="ghost" icon="create-outline" label="Change dishes" onPress={() => setPlanning(l)} /><Button small kind="ghost" icon="calendar-outline" label="Move or cancel" onPress={() => setActing(l)} /></Row>} />

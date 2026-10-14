@@ -1,4 +1,5 @@
 import { mealFor } from '../data/categories';
+import { learnBias } from './learn';
 import { RECIPES, recipeById } from '../data/recipes';
 import { AppState, Member, PlannedDish, PlannedMeal, PlannedMealKind, Recipe, WeekPlan } from '../types';
 import { dishCost } from './grocery';
@@ -199,6 +200,7 @@ export function familyScore(r: Recipe, state: AppState): number {
     : 0;
   const rating = state.ratings[r.id];
   if (rating) s += (rating - 3) * 1.5;
+  s += learnBias(r, state);
   if (state.settings.weeklyBudget > 0) {
     const perDish = state.settings.weeklyBudget / dishesPerWeek(state);
     const cost = dishCost(r);

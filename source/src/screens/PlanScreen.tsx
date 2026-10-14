@@ -1,4 +1,5 @@
 import { cook, cookL } from '../cook';
+import { DishHistory } from './LearnCook';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
@@ -403,6 +404,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
           </Row>
           <Text style={{ color: C.muted, fontSize: 13 }}>{cap(r.cuisine)} · {r.minutes} min · {chillies(r.spice)}</Text>
           <View style={{ marginTop: 6 }}><PotRating recipe={r} /></View>
+          <DishHistory recipeId={r.id} lang="en" />
           <Row style={{ marginTop: 6 }}>
             {isSoup(r) && <Chip tone="brand" icon="water-outline" label="Soup" />}
             {dish.added && <Chip tone="plain" icon="add" label="Added" />}
