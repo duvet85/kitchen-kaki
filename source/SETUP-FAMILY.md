@@ -57,3 +57,13 @@ Limits: timers can't vibrate on iPhone in a browser (the "Time's up" banner stil
 - **Offline use:** the app keeps working offline and catches up when it's back online.
 - **What goes to Google:** only recipe text, never names, allergies or health details.
 - **Free limits:** Supabase's free tier pauses a project after a week with no use. Open the Supabase dashboard to wake it.
+
+## Letting a friend try it with their own family
+
+Many families can share one Supabase project. Each family only sees its own menu, recipes, photos and members (row level security), and all of them use the one Gemini key through the same `translate` function.
+
+1. Run the newest `supabase/schema.sql` once in the SQL Editor (safe to run again; your family and its data stay as they are).
+2. In the app, open Settings > "Let a friend try it" > "Invite a friend to start their own family". Send them the message.
+3. Your friend opens the link, chooses a family name and types their name. They never see a URL or key.
+
+Each link works once and expires after 14 days; you can have 10 waiting at a time. Without a link, nobody can start a second family in your project. Their Gemini use counts against your free Gemini limit.

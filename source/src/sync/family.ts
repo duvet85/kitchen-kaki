@@ -64,7 +64,10 @@ const cleanUrl = (u: string) => {
 function explain(e: { message?: string; code?: string } | null): FamilyError {
   const m = e?.message ?? '';
   if (/create_household|join_household|schema cache|does not exist/i.test(m)) return new FamilyError('The Kitchen Kaki tables are missing. Run schema.sql in the Supabase SQL Editor first.');
-  if (/family exists/i.test(m)) return new FamilyError('This Supabase project already has a family. Join it with an invite instead.');
+  if (/pass needed/i.test(m)) return new FamilyError('This Supabase project already has a family, and a new family needs a setup link from its owner. Ask them for one (Settings > "Invite a friend to start their own family"), or join the family with an invite.');
+  if (/invalid pass/i.test(m)) return new FamilyError('That setup link has already been used or has expired. Ask the owner for a new one.');
+  if (/too many passes/i.test(m)) return new FamilyError('There are already 10 unused setup links. Use or wait for those first.');
+  if (/not allowed/i.test(m)) return new FamilyError('Only the family owner can do that.');
   if (/invalid code/i.test(m)) return new FamilyError("That invite code didn't work. Ask for a new one.");
   if (/Invalid API key|JWT|apikey/i.test(m)) return new FamilyError('Supabase rejected the key. Copy the publishable (anon) key again.');
   return new FamilyError(m || 'Something went wrong with Supabase.');
@@ -107,13 +110,13 @@ export async function diagnose(url: string, key: string): Promise<void> {
 /** The same checks createFamily runs first, without creating anything. */
 export const checkConnection = (urlIn: string, keyIn: string) => diagnose(cleanUrl(urlIn), cleanKey(keyIn));
 
-export async function createFamily(urlIn: string, keyIn: string, familyName: string, myName: string, state: unknown): Promise<FamilyConfig> {
+export async function createFamily(urlIn: string, keyIn: string, familyName: string, myName: string, state: unknown, pass?: string): Promise<FamilyConfig> {
   const url = cleanUrl(urlIn);
   const key = cleanKey(keyIn);
   await diagnose(url, key);
   const sb = client(url, key);
   const userId = await signedIn(sb);
-  const { data, error } = await sb.rpc('create_household', { p_family: familyName, p_name: myName, p_state: state });
+  const { data, error } = await sb.rpc('create_household', { p_family: familyName, p_name: myName, p_state: state, ...(pass ? { p_pass: pass } : {}) });
   if (error) throw explain(error);
   const cfg: FamilyConfig = { url, key, householdId: data as string, role: 'owner', myName, userId };
   await saveConfig(cfg);
@@ -171,6 +174,30 @@ const b64 = (s: string) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').repla
 const unb64 = (s: string) => atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
 
 export const encodeInvite = (cfg: FamilyConfig, code: string) => `KK1.${b64(JSON.stringify({ u: cfg.url, k: cfg.key, c: code }))}`;
+
+/** A setup link lets a friend start their own family in this same Supabase project: it carries the URL, the publishable key and a one-use pass. */
+export const encodeSetup = (cfg: FamilyConfig, pass: string) => `KK2.${b64(JSON.stringify({ u: cfg.url, k: cfg.key, p: pass }))}`;
+
+export function decodeSetup(text: string): { u: string; k: string; p: string } | null {
+  const m = text.match(/KK2\.([A-Za-z0-9_-]+)/);
+  if (!m) return null;
+  try {
+    const v = JSON.parse(unb64(m[1]));
+    return typeof v?.u === 'string' && typeof v?.k === 'string' && typeof v?.p === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Owner: a one-use pass for a friend's own family (good for 14 days). */
+export async function makeFamilyPass(cfg: FamilyConfig): Promise<string> {
+  const { data, error } = await client(cfg.url, cfg.key).rpc('make_family_pass');
+  if (error) {
+    if (/make_family_pass|schema cache/i.test(error.message ?? '')) throw new FamilyError('Run the new schema.sql in the Supabase SQL Editor first (it adds the setup links).');
+    throw explain(error);
+  }
+  return data as string;
+}
 
 export function decodeInvite(text: string): { u: string; k: string; c: string } | null {
   const m = text.match(/KK1\.([A-Za-z0-9_-]+)/);

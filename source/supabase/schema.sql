@@ -1,4 +1,4 @@
--- Kitchen Kaki: one shared family per household, synced across phones.
+-- Kitchen Kaki: shared families, synced across phones. Many families can share one Supabase project, each isolated from the others.
 -- Paste this whole file into Supabase > SQL Editor and press Run. Safe to run again.
 
 -- One row per family. The whole app state is kept as one JSON document.
@@ -74,14 +74,46 @@ language sql volatile set search_path = '' as $$
   from generate_series(1, 8);
 $$;
 
--- Creates a family with the caller as owner. Prototype rule: one family per Supabase project,
--- so strangers who find the project URL can't start their own family and use your Gemini quota.
-create or replace function public.create_household(p_family text, p_name text, p_state jsonb)
-returns uuid language plpgsql security definer set search_path = '' as $$
-declare h uuid;
+-- Family passes: the first family in the project needs nothing. Every later family needs a one-use pass from an owner
+-- (Settings > "Invite a friend to start their own family"), so strangers who find the project URL can't start families
+-- and use your Gemini quota. Each family only ever sees its own data (row level security on membership).
+create table if not exists public.family_passes (
+  code text primary key,
+  made_by uuid not null default auth.uid(),
+  expires_at timestamptz not null default now() + interval '14 days',
+  used_by uuid,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.family_passes enable row level security;
+revoke all on public.family_passes from anon, authenticated;
+
+-- An owner makes a one-use pass (expires in 14 days; at most 10 waiting at once).
+create or replace function public.make_family_pass()
+returns text language plpgsql security definer set search_path = '' as $$
+declare c text;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
-  if exists (select 1 from public.households) then raise exception 'family exists' using errcode = 'P0001'; end if;
+  if not exists (select 1 from public.household_members m where m.user_id = auth.uid() and m.role = 'owner') then raise exception 'not allowed'; end if;
+  if (select count(*) from public.family_passes where made_by = auth.uid() and used_by is null and expires_at > now()) >= 10 then raise exception 'too many passes'; end if;
+  c := public.new_code() || public.new_code();
+  insert into public.family_passes (code) values (c);
+  return c;
+end $$;
+
+-- Creates a family with the caller as owner. The first family in the project needs no pass; later ones need a valid one.
+drop function if exists public.create_household(text, text, jsonb);
+create or replace function public.create_household(p_family text, p_name text, p_state jsonb, p_pass text default null)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare h uuid; pass_code text := upper(trim(coalesce(p_pass, '')));
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if exists (select 1 from public.households) then
+    if pass_code = '' then raise exception 'pass needed' using errcode = 'P0001'; end if;
+    update public.family_passes set used_by = auth.uid(), used_at = now()
+      where code = pass_code and used_by is null and expires_at > now();
+    if not found then raise exception 'invalid pass' using errcode = 'P0001'; end if;
+  end if;
   insert into public.households (name, state, updated_by) values (coalesce(nullif(trim(p_family), ''), 'Our family'), p_state, auth.uid()) returning id into h;
   insert into public.household_members (household_id, user_id, role, name) values (h, auth.uid(), 'owner', coalesce(p_name, ''));
   insert into public.household_invites (household_id, parent_code, helper_code) values (h, public.new_code(), public.new_code());
@@ -119,10 +151,10 @@ begin
   delete from public.household_members where household_id = p_household and user_id = p_user and role <> 'owner';
 end $$;
 
-revoke all on function public.create_household(text, text, jsonb), public.join_household(text, text),
-  public.reset_invites(uuid), public.remove_member(uuid, uuid), public.new_code() from public, anon;
-grant execute on function public.create_household(text, text, jsonb), public.join_household(text, text),
-  public.reset_invites(uuid), public.remove_member(uuid, uuid) to authenticated;
+revoke all on function public.create_household(text, text, jsonb, text), public.join_household(text, text),
+  public.reset_invites(uuid), public.remove_member(uuid, uuid), public.new_code(), public.make_family_pass() from public, anon;
+grant execute on function public.create_household(text, text, jsonb, text), public.join_household(text, text),
+  public.reset_invites(uuid), public.remove_member(uuid, uuid), public.make_family_pass() to authenticated;
 
 -- Live updates: other phones see changes within a second or two.
 do $$ begin

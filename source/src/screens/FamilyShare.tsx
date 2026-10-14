@@ -3,11 +3,12 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, TextInput, View } from 'react-native';
 import { useApp } from '../state';
 import {
-  FamilyConfig, FamilyError, Member, checkConnection, createFamily, decodeInvite, encodeInvite, familyInfo, joinFamily, leaveFamily, removeMember, resetInvites,
+  FamilyConfig, FamilyError, Member, checkConnection, createFamily, decodeInvite, decodeSetup, encodeInvite, encodeSetup, makeFamilyPass, familyInfo, joinFamily, leaveFamily, removeMember, resetInvites,
 } from '../sync/family';
 import { Avatar, Button, C, Card, Chip, H2, Icon, Label, Notice, Row, Text, s } from '../ui';
 
 const roleLabel = (r: 'owner' | 'parent' | 'helper') => (r === 'helper' ? cook() : r === 'owner' ? 'Owner' : 'Parent');
+const webSetup = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('setup') : null);
 const webInvite = () => (Platform.OS === 'web' && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('join') : null);
 
 /** Settings card: set up a family in Supabase, join one with an invite, or manage it. */
@@ -32,8 +33,10 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
 function NotConnected() {
   const { state, setFamily } = useApp();
   const fromLink = webInvite();
-  const [mode, setMode] = useState<'join' | 'create'>(fromLink ? 'join' : 'create');
-  const [invite, setInvite] = useState(fromLink ? `KK1.${fromLink.replace(/^KK1\./, '')}` : '');
+  const setupLink = webSetup();
+  const [mode, setMode] = useState<'join' | 'create'>(fromLink || setupLink ? 'join' : 'create');
+  const [invite, setInvite] = useState(fromLink ? `KK1.${fromLink.replace(/^KK1\./, '')}` : setupLink ? `KK2.${setupLink.replace(/^KK2\./, '')}` : '');
+  const setup = decodeSetup(invite);
   const [url, setUrl] = useState('');
   const [key, setKey] = useState('');
   const [familyName, setFamilyName] = useState('');
@@ -45,10 +48,12 @@ function NotConnected() {
     setBusy(true);
     setError(null);
     try {
-      const cfg = mode === 'create'
-        ? await createFamily(url, key, familyName, myName, state)
-        : await joinFamily(invite, myName);
-      if (Platform.OS === 'web' && fromLink) window.history.replaceState(null, '', window.location.pathname);
+      const cfg = setup
+        ? await createFamily(setup.u, setup.k, familyName, myName, state, setup.p)
+        : mode === 'create'
+          ? await createFamily(url, key, familyName, myName, state)
+          : await joinFamily(invite, myName);
+      if (Platform.OS === 'web' && (fromLink || setupLink)) window.history.replaceState(null, '', window.location.pathname);
       setFamily(cfg);
     } catch (e) {
       setError(e instanceof FamilyError ? e.message : `Something went wrong${e instanceof Error && e.message ? `: ${e.message}` : ''}. Tap "Check connection" to see what Supabase says.`);
@@ -63,7 +68,7 @@ function NotConnected() {
     catch (e) { setError(e instanceof Error ? e.message : 'Could not connect.'); }
     finally { setBusy(false); }
   };
-  const ok = myName.trim() && (mode === 'create' ? url.trim() && key.trim().length > 20 : decodeInvite(invite));
+  const ok = myName.trim() && (setup ? familyName.trim() : mode === 'create' ? url.trim() && key.trim().length > 20 : decodeInvite(invite));
 
   return (
     <Card>
@@ -81,7 +86,7 @@ function NotConnected() {
         {(['create', 'join'] as const).map((m) => (
           <Pressable key={m} onPress={() => { setMode(m); setError(null); }} accessibilityRole="tab" accessibilityState={{ selected: mode === m }}
             style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: mode === m ? C.card : 'transparent' }}>
-            <Text style={{ fontWeight: '700', color: mode === m ? C.brandDeep : C.muted }}>{m === 'create' ? 'Set up our family' : 'Join with an invite'}</Text>
+            <Text style={{ fontWeight: '700', color: mode === m ? C.brandDeep : C.muted }}>{m === 'create' ? 'Set up our family' : 'Join or use a link'}</Text>
           </Pressable>
         ))}
       </View>
@@ -95,18 +100,26 @@ function NotConnected() {
           <Field label="Family name" value={familyName} onChange={setFamilyName} placeholder="e.g. The Tans" />
         </>
       ) : (
-        <Field label="Invite" value={invite} onChange={setInvite} placeholder="Paste the invite message you were sent" multiline />
+        <>
+          <Field label="Invite or setup link" value={invite} onChange={setInvite} placeholder="Paste the message you were sent" multiline />
+          {setup && (
+            <>
+              <Notice tone="good" icon="checkmark-circle-outline">This starts a new family of your own. Nobody else can see your menu or recipes. Just choose a name for it below.</Notice>
+              <Field label="Family name" value={familyName} onChange={setFamilyName} placeholder="e.g. The Lims" />
+            </>
+          )}
+        </>
       )}
       <Field label="Your name" value={myName} onChange={setMyName} placeholder={mode === 'create' ? 'e.g. Jack' : 'e.g. Mum, Maria'} />
       {mode === 'create' && <Text style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>The menu and family already on this phone become the shared copy.</Text>}
-      {mode === 'join' && <Text style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>The family's shared menu replaces what is on this phone.</Text>}
+      {mode === 'join' && !setup && <Text style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>The family's shared menu replaces what is on this phone.</Text>}
       {error && <Text style={{ color: C.red, fontSize: 13, marginTop: 10 }}>{error}</Text>}
       {checked && <Text style={{ color: C.green, fontSize: 13, marginTop: 10, fontWeight: '600' }}>{checked}</Text>}
       {mode === 'create' && url.trim() && key.trim() ? <View style={{ marginTop: 10, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="pulse-outline" label="Check connection" onPress={check} disabled={busy} /></View> : null}
       <View style={{ marginTop: 14, alignSelf: 'flex-start' }}>
         {busy
           ? <Row style={{ gap: 8 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>Connecting…</Text></Row>
-          : <Button icon={mode === 'create' ? 'cloud-upload-outline' : 'enter-outline'} label={mode === 'create' ? 'Create family' : 'Join family'} onPress={go} disabled={!ok} />}
+          : <Button icon={mode === 'create' ? 'cloud-upload-outline' : 'enter-outline'} label={setup ? 'Start our family' : mode === 'create' ? 'Create family' : 'Join family'} onPress={go} disabled={!ok} />}
       </View>
     </Card>
   );
@@ -127,9 +140,23 @@ function Connected({ family }: { family: FamilyConfig }) {
   const share = async (code: string, who: 'parent' | 'helper') => {
     const inv = encodeInvite(family, code);
     const link = Platform.OS === 'web' && typeof window !== 'undefined' ? `\n${window.location.origin}${window.location.pathname}?join=${inv.slice(4)}` : '';
-    const message = `Join ${info?.name ?? 'our family'} on Kitchen Kaki${who === 'helper' ? ` (${cookL()})` : ''}. Open the app, go to Settings > Join with an invite, and paste this whole message:\n${inv}${link}`;
+    const message = `Join ${info?.name ?? 'our family'} on Kitchen Kaki${who === 'helper' ? ` (${cookL()})` : ''}. Open the app, go to Settings > Join or use a link, and paste this whole message:\n${inv}${link}`;
     setShown(message);
     try { await Share.share({ message }); } catch { /* user closed the sheet, or no share on this browser: the text is shown below */ }
+  };
+  const [friendMsg, setFriendMsg] = useState<string | null>(null);
+  const [friendBusy, setFriendBusy] = useState(false);
+  const inviteFriend = async () => {
+    setFriendBusy(true); setError(null);
+    try {
+      const pass = await makeFamilyPass(family);
+      const setup = encodeSetup(family, pass);
+      const link = Platform.OS === 'web' && typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}?setup=${setup.slice(4)}` : '';
+      const message = `Try Kitchen Kaki with your own family! ${link ? `Open this link, choose a family name and type your name:\n${link}\n\nOr in the app go to Settings > Join or use a link and paste:\n` : 'Open the app, go to Settings > Join or use a link, and paste this whole message:\n'}${setup}\n\nThis link works once and stops working after 14 days. Your menu and recipes stay private to your family.`;
+      setFriendMsg(message);
+      try { await Share.share({ message }); } catch { /* the text is shown below */ }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not make a setup link.'); }
+    finally { setFriendBusy(false); }
   };
   const dot = { live: C.green, connecting: C.amber, offline: C.red, off: C.faint }[sync];
 
@@ -188,6 +215,24 @@ function Connected({ family }: { family: FamilyConfig }) {
           <Pressable onPress={() => resetInvites(family).then(() => setTick(tick + 1)).catch((e) => setError(e.message))} style={{ marginTop: 6 }}>
             <Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>Make new codes (old invites stop working)</Text>
           </Pressable>
+        </>
+      )}
+
+      {family.role === 'owner' && (
+        <>
+          <Label>Let a friend try it</Label>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19, marginBottom: 8 }}>
+            Your friend gets their own separate family on your Supabase and Gemini. They can't see your family, and you can't see theirs. Send them the link: they only choose a family name and type their own name.
+          </Text>
+          <Row style={{ gap: 8 }}>
+            {friendBusy ? <ActivityIndicator color={C.brand} /> : <Button kind="ghost" icon="gift-outline" label="Invite a friend to start their own family" onPress={inviteFriend} />}
+          </Row>
+          {friendMsg && (
+            <View style={{ marginTop: 10, backgroundColor: C.bg, borderRadius: 12, padding: 12 }}>
+              <Text style={{ color: C.muted, fontSize: 12, marginBottom: 4 }}>If the share sheet didn't open, copy this:</Text>
+              <Text selectable style={{ fontSize: 12, lineHeight: 17 }}>{friendMsg}</Text>
+            </View>
+          )}
         </>
       )}
 
