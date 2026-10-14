@@ -15,3 +15,15 @@ export const cookL = () => (/^(cook|helper|maid|kaki)$/i.test(label) && label.to
 
 /** Plural for sentences ("Many cooks already cook well"). */
 export const cooksL = () => (cookL() === label.toLowerCase() ? `${cookL()}s` : `${label}'s cooks`);
+
+import { LANGS } from './i18n';
+import { AppState, Lang } from './types';
+
+/** The cook's own language: the one the owner chose in Settings, else the one already in use. undefined = not chosen yet. */
+export const cookLangOf = (st: Pick<AppState, 'settings'>): Lang | undefined => st.settings.cookLang ?? (st.settings.helperLang !== 'en' ? st.settings.helperLang : undefined);
+
+/** Languages to offer for the cook's screens: English plus the cook's own language only (all of them until one is chosen). */
+export const langOptions = (st: Pick<AppState, 'settings'>) => {
+  const own = cookLangOf(st);
+  return own ? LANGS.filter((l) => l.key === 'en' || l.key === own) : LANGS;
+};

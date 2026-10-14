@@ -1,4 +1,4 @@
-import { cook, cookL, cooksL } from '../cook';
+import { cook, cookL, cooksL, langOptions } from '../cook';
 import React, { useMemo, useState } from 'react';
 import { dishName } from '../ai/text';
 import { Pressable, Share, TextInput, View } from 'react-native';
@@ -324,7 +324,7 @@ function HelperKitchen({ preview }: { preview?: () => void }) {
       {preview && <View style={{ marginTop: 6, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="arrow-back" label="Back to your view" onPress={preview} /></View>}
       {preview && (
         <Row style={{ marginTop: 10 }}>
-          {LANGS.map((l) => <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />)}
+          {langOptions(state).map((l) => <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />)}
         </Row>
       )}
       {celebrate.map((c) => (

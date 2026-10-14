@@ -151,6 +151,8 @@ export interface Settings {
   helperLang: Lang;
   /** What the family calls the person who cooks. Default "Cook". */
   cookLabel?: string;
+  /** The language of the cook's home country. Only this language (plus English) is offered and translated. */
+  cookLang?: Lang;
   /** breakfast and lunch to plan besides dinner (missing = dinner only) */
   meals?: { breakfast?: boolean; lunch?: boolean };
 }
