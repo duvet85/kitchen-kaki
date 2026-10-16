@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { CATALOGUE } from '../data/store';
 import { RECIPES } from '../data/recipes';
 import DishPhoto from '../DishPhoto';
@@ -9,9 +9,9 @@ import { GeminiError, draftRecipeText, searchRecipesGrounded } from '../ai/gemin
 import { localDate } from '../engine/recognition';
 import { RecipeOption, parseOptions } from '../ai/search';
 import { Imported, importedToDraft } from '../ai/importMap';
-import { FamilyError, draftViaFamily, importViaFamily, searchViaFamily } from '../sync/family';
-import { useApp } from '../state';
-import { Allergen, Recipe } from '../types';
+import { Browsed, FamilyError, browseViaFamily, draftViaFamily, importViaFamily, searchViaFamily } from '../sync/family';
+import { newId, useApp } from '../state';
+import { Allergen, Recipe, SavedLink } from '../types';
 import { Button, C, Card, Chip, F, Icon, IconButton, Label, Notice, P, Row, Stepper, Text, chillies } from '../ui';
 import { DishDetail } from './DishSheets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,6 +47,7 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState<Recipe | 'new' | null>(null);
   const [searching, setSearching] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [seed, setSeed] = useState<Seed | null>(null);
   const [importing, setImporting] = useState<{ url?: string; refresh?: Recipe } | null>(null);
   const [imported, setImported] = useState<{ draft: Draft; refresh?: Recipe } | null>(null);
@@ -66,6 +67,11 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
       {web && (
         <View style={{ marginTop: 12 }}>
           <Button icon="link" label="Import a recipe from a website link" onPress={() => setImporting({})} />
+        </View>
+      )}
+      {web && (
+        <View style={{ marginTop: 8 }}>
+          <Button kind="ghost" icon="globe-outline" label="Browse a recipe website and save several" onPress={() => setBrowsing(true)} />
         </View>
       )}
       {web && (
@@ -106,6 +112,7 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
         </View>
       ))}
       {!rows.length && <Text style={{ color: C.muted, marginTop: 10 }}>Nothing matches “{q}”.</Text>}
+      {browsing && <BrowseSites onClose={() => setBrowsing(false)} />}
       {searching && <SearchRecipes onClose={() => setSearching(false)} onPick={(sd) => { setSearching(false); setSeed(sd); }} onDraftByName={(q) => { setSearching(false); setSeed({ text: q, auto: false }); }} />}
       {importing && (
         <ImportLink start={importing.url} refresh={importing.refresh} onClose={() => setImporting(null)}
@@ -121,13 +128,14 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
 }
 
 /** One way of adding a recipe, opened straight from the Home page (no recipe book behind it). */
-export function AddRecipeFlow({ start, onClose }: { start: 'import' | 'search' | 'gemini'; onClose: () => void }) {
+export function AddRecipeFlow({ start, url, onClose }: { start: 'import' | 'search' | 'gemini' | 'browse'; url?: string; onClose: () => void }) {
   const [seed, setSeed] = useState<Seed | null>(null);
   const [imported, setImported] = useState<Draft | null>(null);
   return (
     <>
       {start === 'search' && !seed && <SearchRecipes onClose={onClose} onPick={setSeed} onDraftByName={(q) => setSeed({ text: q, auto: false })} />}
-      {start === 'import' && !seed && !imported && <ImportLink onClose={onClose} onDraft={setImported} onSeed={setSeed} />}
+      {start === 'import' && !seed && !imported && <ImportLink start={url} onClose={onClose} onDraft={setImported} onSeed={setSeed} />}
+      {start === 'browse' && <BrowseSites onClose={onClose} />}
       {start === 'gemini' && !seed && <AddRecipe onClose={onClose} />}
       {imported && <AddRecipe initial={imported} onClose={onClose} />}
       {seed && <AddRecipe seed={seed} onClose={onClose} />}
@@ -211,7 +219,7 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
 /** Ask Gemini for a draft, then let the owner check and edit everything before it joins the book. */
 type Seed = { text: string; url?: string; name?: string; auto: boolean; image?: string; video?: string; /** a caption pasted from an Instagram post: written up faithfully, never filled in */ instagram?: { account?: string } };
 
-function AddRecipe({ existing, seed, initial, onClose }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void }) {
+function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void; onSaved?: () => void }) {
   const { state, update, family } = useApp();
   const { key, model } = useAi();
   const [text, setText] = useState(seed?.text ?? '');
@@ -280,6 +288,7 @@ function AddRecipe({ existing, seed, initial, onClose }: { existing?: Recipe; se
           // a changed recipe needs fresh translations
           aiTranslations: Object.fromEntries(Object.entries(st.aiTranslations ?? {}).filter(([id]) => id !== d.recipe.id)),
         }));
+        onSaved?.();
         onClose();
       }} />
   );
@@ -481,6 +490,219 @@ function ImportLink({ start, refresh, onClose, onDraft, onSeed }: { start?: stri
         {busy ? <Row style={{ gap: 10 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>Reading the page…</Text></Row>
           : <Button icon="download-outline" label={refresh ? 'Check the page again' : 'Import recipe'} disabled={!family || !link} onPress={run} />}
       </View>}
+    </Sheet>
+  );
+}
+
+const SITES = [
+  { name: 'Tiffy Cooks', url: 'https://tiffycooks.com/recipes/' },
+  { name: 'Rasa Malaysia', url: 'https://rasamalaysia.com/recipes/' },
+  { name: 'Nyonya Cooking', url: 'https://www.nyonyacooking.com/recipes' },
+  { name: 'RecipeTin Eats', url: 'https://www.recipetineats.com/recipes/' },
+];
+const SITE_TAB = 'kitchenkaki-recipe-site';
+/** The page as shown in the window: the function's simple copy plus one small script that tells the app which link was tapped. */
+const readerDoc = (html: string) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+body{font:16px/1.5 system-ui,sans-serif;margin:12px;color:#222;overflow-wrap:anywhere}img{max-width:100%;height:auto;border-radius:8px}a{color:#1f6f4a;cursor:pointer;text-decoration:underline}
+nav,header,footer,aside{background:#f6f1e7;border-radius:8px;padding:6px 10px;margin:8px 0;font-size:14px}nav a,header a,footer a{margin-right:8px;display:inline-block}li{margin:4px 0}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}
+</style><body>${html}<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a');if(a&&a.dataset.h){e.preventDefault();parent.postMessage({kk:1,go:a.dataset.h},'*')}});</script></body>`;
+
+const hostOf = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[/?#].*$/, '');
+const WEB = Platform.OS === 'web';
+
+/**
+ * Browse a recipe site in its own tab, copy a recipe's link, come back and save it in one tap, then carry on browsing.
+ * Most recipe sites don't allow other apps to show their pages inside the app, so the site stays in its own tab.
+ * Each saved link is read in the background and waits in a list: nothing joins the recipe book until the owner has checked it.
+ */
+function BrowseSites({ onClose }: { onClose: () => void }) {
+  const { state, update, family } = useApp();
+  const [url, setUrl] = useState('');
+  const [site, setSite] = useState('');
+  const [offer, setOffer] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
+  const [checking, setChecking] = useState<SavedLink | null>(null);
+  const [manual, setManual] = useState<string | null>(null);
+  const [lookAt, setLookAt] = useState<string | null>(null);
+  const field = React.useRef<TextInput>(null);
+  const [page, setPage] = useState<Browsed | null>(null);
+  const [trail, setTrail] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [tried, setTried] = useState('');
+  const frame = React.useRef<HTMLIFrameElement | null>(null);
+  const goRef = React.useRef<(u: string, back?: boolean) => void>(() => undefined);
+  const saved = state.savedLinks ?? [];
+  const link = cleanUrl(url);
+  const patch = (id: string, p: Partial<SavedLink>) => update((st) => ({ ...st, savedLinks: (st.savedLinks ?? []).map((x) => (x.id === id ? { ...x, ...p } : x)) }));
+
+  // the window inside the app: the function fetches the page, the app shows a simple copy and decides what opens next
+  const go = async (raw: string, back = false) => {
+    const u = cleanUrl(raw);
+    if (!u || !family) return;
+    setLoading(true); setPageError(null); setNote(null); setTried(u);
+    try {
+      const b = await browseViaFamily(family, u);
+      setPage(b);
+      setTrail((t) => (back ? t.slice(0, -1) : [...t, b.url]));
+    } catch (e) {
+      setPageError(e instanceof FamilyError ? e.message : "Couldn't open that page here. Open it in a new tab instead.");
+    } finally { setLoading(false); }
+  };
+  goRef.current = go;
+  const inApp = WEB && !!family;
+  useEffect(() => {
+    if (!inApp || typeof window === 'undefined') return;
+    const on = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow || !e.data || e.data.kk !== 1 || typeof e.data.go !== 'string') return;
+      goRef.current(e.data.go);
+    };
+    window.addEventListener('message', on);
+    return () => window.removeEventListener('message', on);
+  }, [inApp]);
+  const back = () => { const prev = trail[trail.length - 2]; if (prev) go(prev, true); };
+  const openSite = (u: string) => (inApp ? go(u) : open(u));
+
+  const open = (u: string) => {
+    setOpened(true);
+    if (WEB && typeof window !== 'undefined') window.open(u, SITE_TAB);
+    else Linking.openURL(u).catch(() => undefined);
+  };
+
+  // coming back from the site tab: offer the link that was just copied there
+  const looksNew = (u: string) => !saved.some((x) => x.url === u) && !(state.customRecipes ?? []).some((r) => r.sourceUrl === u);
+  const readClipboard = () => {
+    try {
+      const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+      nav?.clipboard?.readText?.().then((t) => { const u = cleanUrl(t); if (u && looksNew(u)) setOffer(u); }).catch(() => undefined);
+    } catch { /* clipboard not allowed: the Paste button and the link box still work */ }
+  };
+  useEffect(() => {
+    if (!WEB || !opened || typeof window === 'undefined') return;
+    const on = () => { if (document.visibilityState === 'visible') readClipboard(); };
+    window.addEventListener('focus', on);
+    document.addEventListener('visibilitychange', on);
+    return () => { window.removeEventListener('focus', on); document.removeEventListener('visibilitychange', on); };
+  });
+
+  const save = async (raw: string) => {
+    const u = cleanUrl(raw);
+    setNote(null);
+    if (!u) { setNote("That isn't a web link yet. It needs to start with https://"); return; }
+    if (isInstagram(u)) { setNote("Instagram can't be read this way. Use Import from a link and paste the caption."); return; }
+    if (!looksNew(u)) { setNote('You already saved that one.'); setUrl(''); setOffer(null); return; }
+    if (!family) { setNote('Reading a page needs family sharing (Supabase) switched on.'); return; }
+    const id = newId();
+    update((st) => ({ ...st, savedLinks: [{ id, url: u, at: new Date().toISOString(), status: 'reading' as const }, ...(st.savedLinks ?? [])].slice(0, 40) }));
+    setUrl(''); setOffer(null);
+    setTimeout(() => field.current?.focus(), 50);
+    try {
+      const imp = await importViaFamily(family, u);
+      const d = imp.found ? importedToDraft(imp) : null;
+      if (d) patch(id, { status: 'ready', name: d.recipe.name, draft: d });
+      else patch(id, { status: 'look', name: imp.name || imp.site || hostOf(u) });
+    } catch (e) {
+      patch(id, { status: 'failed', error: e instanceof FamilyError ? e.message : 'Reading the page failed.' });
+    }
+  };
+  const drop = (id: string) => update((st) => ({ ...st, savedLinks: (st.savedLinks ?? []).filter((x) => x.id !== id) }));
+  const paste = () => {
+    try {
+      navigator.clipboard.readText().then((t) => { const u = cleanUrl(t); if (u) setUrl(u); else setNote('Nothing that looks like a web link was copied.'); }).catch(() => setNote("This browser didn't allow pasting. Paste into the box instead."));
+    } catch { setNote("This browser didn't allow pasting. Paste into the box instead."); }
+  };
+  const waiting = saved.filter((x) => x.status === 'ready').length;
+
+  return (
+    <Sheet title="Browse and save recipes" onClose={onClose}>
+      <P style={{ color: C.muted, marginTop: 10 }}>Open a recipe website, find a recipe, copy its link, then come back here and save it. Open the site again and carry on from where you were. Saved recipes wait below until you check them.</P>
+      <Notice tone="brand" icon="information-circle-outline">{inApp
+        ? "Pages open in a simple window here: text, pictures and links, without ads, videos or scripts. Tap a link to move around the site, and Save recipe when you find one. If a site won't open, use \"Open in a new tab\"."
+        : "Most recipe websites don't let other apps show their pages inside the app, so the site opens in its own browser tab and stays open there."}</Notice>
+      <Label>1. Pick a website</Label>
+      <Row style={{ gap: 6 }}>
+        {SITES.map((x) => <Chip key={x.name} label={x.name} selected={site === x.url} onPress={() => { setSite(x.url); openSite(x.url); }} />)}
+      </Row>
+      <Row style={{ marginTop: 8, gap: 8, flexWrap: 'nowrap' }}>
+        <TextInput value={manual ?? ''} onChangeText={setManual} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Or any other website, https://…" placeholderTextColor={C.faint}
+          accessibilityLabel="Other website" style={[input, { flex: 1 }]} onSubmitEditing={() => cleanUrl(manual ?? '') && openSite(cleanUrl(manual ?? '')!)} />
+        <Button small kind="ghost" icon="open-outline" label="Open" disabled={!cleanUrl(manual ?? '')} onPress={() => openSite(cleanUrl(manual ?? '')!)} />
+      </Row>
+      {inApp && (loading || page || pageError) && (
+        <View style={{ marginTop: 12, borderWidth: 1, borderColor: C.line, borderRadius: 16, overflow: 'hidden', backgroundColor: C.card }}>
+          <Row style={{ gap: 6, flexWrap: 'nowrap', padding: 8, borderBottomWidth: 1, borderColor: C.line }}>
+            <IconButton icon="arrow-back" label="Back" onPress={back} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{page ? page.title || hostOf(page.url) : ' '}</Text>
+              <Text style={{ fontSize: 11, color: C.faint }} numberOfLines={1}>{page ? hostOf(page.url) + page.url.replace(/^https?:\/\/[^/]+/, '') : loading ? 'Opening…' : ''}</Text>
+            </View>
+            {loading && <ActivityIndicator color={C.brand} />}
+            {page && <IconButton icon="open-outline" label="Open this page in a new tab" onPress={() => open(page.url)} />}
+          </Row>
+          {pageError && <View style={{ padding: 12 }}><Notice tone="warn" icon="alert-circle-outline">{pageError}</Notice>{tried !== '' && <View style={{ marginTop: 8, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Open in a new tab instead" onPress={() => open(tried)} /></View>}</View>}
+          {page && React.createElement('iframe', {
+            ref: frame, title: 'Recipe website', sandbox: 'allow-scripts', srcDoc: readerDoc(page.html), style: { width: '100%', height: 420, border: 0, display: 'block', backgroundColor: '#fff' },
+          })}
+          {page && (
+            <Row style={{ gap: 8, flexWrap: 'nowrap', padding: 10, borderTopWidth: 1, borderColor: C.line }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: page.hasRecipe ? C.green : C.faint, fontWeight: '700' }}>{page.hasRecipe ? 'This page has a recipe' : "This doesn't look like a recipe page"}</Text>
+              </View>
+              {saved.some((x) => x.url === page.url) || (state.customRecipes ?? []).some((r) => r.sourceUrl === page.url)
+                ? <Chip tone="good" icon="checkmark" label="Saved" />
+                : <Button small icon="bookmark" label="Save recipe" onPress={() => save(page.url)} />}
+            </Row>
+          )}
+        </View>
+      )}
+      <Label>{inApp ? 'Or paste a link to save' : "2. Copy the recipe's link, then save it here"}</Label>
+      {offer && (
+        <View style={{ backgroundColor: C.brandSoft, borderRadius: 14, padding: 12, marginBottom: 8 }}>
+          <Text style={{ fontWeight: '700' }}>Link you just copied</Text>
+          <Text style={{ color: C.muted, fontSize: 13 }} numberOfLines={2}>{hostOf(offer)}{offer.replace(/^https?:\/\/[^/]+/, '')}</Text>
+          <Row style={{ marginTop: 8 }}>
+            <Button small icon="bookmark" label="Save this recipe" onPress={() => save(offer)} />
+            <Button small kind="ghost" label="Not this one" onPress={() => setOffer(null)} />
+          </Row>
+        </View>
+      )}
+      <Row style={{ gap: 8, flexWrap: 'nowrap' }}>
+        <TextInput ref={field} value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://… link of the recipe" placeholderTextColor={C.faint}
+          accessibilityLabel="Recipe link to save" onSubmitEditing={() => save(url)} style={[input, { flex: 1 }]} />
+        {WEB && <Button small kind="ghost" icon="clipboard-outline" label="Paste" onPress={paste} />}
+      </Row>
+      <View style={{ marginTop: 8 }}>
+        <Button icon="bookmark" label={inApp ? "Save pasted link" : "Save recipe"} disabled={!link} onPress={() => save(url)} />
+      </View>
+      {note && <Notice tone="warn" icon="alert-circle-outline">{note}</Notice>}
+      {!family && <Notice tone="warn" icon="people-outline">Reading a page needs family sharing (Supabase) switched on, because a browser can't read other websites by itself.</Notice>}
+      <Text style={{ color: C.faint, fontSize: 12, marginTop: 8, lineHeight: 17 }}>Only the link is sent. Each recipe stays linked to its website and credits it. Keep to recipes you may copy: for your own family.</Text>
+
+      {saved.length > 0 && <Label>{waiting ? `Saved, ${waiting} to check` : 'Saved from websites'}</Label>}
+      {saved.map((x) => (
+        <View key={x.id} style={{ borderTopWidth: 1, borderColor: C.line, paddingVertical: 10 }}>
+          <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: '700' }} numberOfLines={2}>{x.name ?? hostOf(x.url)}</Text>
+              <Text style={{ color: C.faint, fontSize: 12 }} numberOfLines={1}>{hostOf(x.url)}</Text>
+            </View>
+            {x.status === 'reading' && <ActivityIndicator color={C.brand} />}
+            {x.status === 'added' && <Chip tone="good" icon="checkmark" label="Added" />}
+            {x.status === 'ready' && <Button small icon="checkmark-circle-outline" label="Check and add" onPress={() => setChecking(x)} />}
+            {x.status === 'look' && <Button small kind="ghost" icon="document-text-outline" label="Open it" onPress={() => setLookAt(x.url)} />}
+          </Row>
+          {x.status === 'look' && <Text style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>This page has no recipe this app can read by itself. Open it to paste the text, or let Gemini read it.</Text>}
+          {x.status === 'failed' && <Text style={{ color: C.red, fontSize: 12, marginTop: 4 }}>{x.error}</Text>}
+          {(x.status !== 'reading') && (
+            <Pressable onPress={() => drop(x.id)} accessibilityRole="button" accessibilityLabel={`Remove ${x.name ?? hostOf(x.url)} from the list`} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+              <Text style={{ color: C.faint, fontSize: 12, textDecorationLine: 'underline' }}>{x.status === 'ready' ? 'Skip this one' : 'Remove from list'}</Text>
+            </Pressable>
+          )}
+        </View>
+      ))}
+      {checking?.draft && <AddRecipe initial={checking.draft} onClose={() => setChecking(null)} onSaved={() => patch(checking.id, { status: 'added', draft: undefined })} />}
+      {lookAt && <AddRecipeFlow start="import" url={lookAt} onClose={() => setLookAt(null)} />}
     </Sheet>
   );
 }

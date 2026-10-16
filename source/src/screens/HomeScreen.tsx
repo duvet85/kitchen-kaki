@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const [viewing, setViewing] = useState<Recipe | null>(null);
   const [book, setBook] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [adding, setAdding] = useState<'import' | 'search' | 'gemini' | null>(null);
+  const [adding, setAdding] = useState<'import' | 'search' | 'gemini' | 'browse' | null>(null);
   const web = useWebRecipes();
   const term = q.trim().toLowerCase();
   const rows = RECIPES.filter((r) => !r.sickDay && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
@@ -60,6 +60,7 @@ export default function HomeScreen() {
         {addOpen && (
           <View style={{ marginTop: 8, gap: 8 }}>
             {web && <Button kind="ghost" icon="link" label="Import from a website link" onPress={() => { setAddOpen(false); setAdding('import'); }} />}
+            {web && <Button kind="ghost" icon="globe-outline" label="Browse a recipe website and save several" onPress={() => { setAddOpen(false); setAdding('browse'); }} />}
             {web && <Button kind="ghost" icon="search" label="Search the web for a recipe" onPress={() => { setAddOpen(false); setAdding('search'); }} />}
             <Button kind="ghost" icon="sparkles" label="Type a dish or paste a recipe (Gemini)" onPress={() => { setAddOpen(false); setAdding('gemini'); }} />
             <Button kind="ghost" icon="book-outline" label="Open the recipe book" onPress={() => { setAddOpen(false); setBook(true); }} />

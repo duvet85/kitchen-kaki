@@ -343,6 +343,60 @@ async function importRecipe(link: string) {
   return { found: false, url, site: site.slice(0, 60), name: (meta(html, 'og:title') || plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1])).slice(0, 120), image: meta(html, 'og:image'), video: pageVideo(html, url) || null, text };
 }
 
+// ---- "Browse": a simple copy of a page without scripts, that the app shows in a window inside the app ----
+// The page is fetched by the function (same public-page checks as the import), reduced to plain text, links and pictures,
+// and every link is rewritten so the app, not the website, decides what opens next. Nothing from the page can run.
+
+const OK_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'a', 'img', 'br', 'hr', 'strong', 'b', 'em', 'i', 'blockquote', 'figure', 'figcaption',
+  'table', 'thead', 'tbody', 'tr', 'td', 'th', 'section', 'article', 'main', 'div', 'span', 'nav', 'header', 'footer', 'aside', 'small', 'sup', 'sub', 'dl', 'dt', 'dd', 'time']);
+const VOID = new Set(['img', 'br', 'hr']);
+const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const attrOf = (s: string, n: string) => {
+  const m = s.match(new RegExp(`(?:^|\\s)${n}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+  return m ? decode(m[1] ?? m[2] ?? m[3] ?? '') : '';
+};
+function absUrl(raw: string, base: string): string {
+  try {
+    const u = new URL(raw.trim(), base);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.toString().length <= 500 ? u.toString() : '';
+  } catch { return ''; }
+}
+
+function simplify(html: string, base: string): string {
+  const body = (html.match(/<body[\s\S]*<\/body\s*>/i)?.[0] ?? html)
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|noscript|iframe|object|embed|form|svg|template|select|textarea|button|head|video|audio|canvas|map|dialog)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  let out = '';
+  let last = 0;
+  const re = /<(\/?)([a-z][a-z0-9]*)\b([^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) && out.length < 400_000) {
+    out += htmlEsc(decode(body.slice(last, m.index)));
+    last = re.lastIndex;
+    const [, close, raw, attrs] = m;
+    const name = raw.toLowerCase();
+    if (!OK_TAGS.has(name)) continue;
+    if (close) { if (!VOID.has(name)) out += `</${name}>`; continue; }
+    if (name === 'a') {
+      const href = absUrl(attrOf(attrs, 'href'), base);
+      out += href ? `<a data-h="${htmlEsc(href)}">` : '<a>';
+    } else if (name === 'img') {
+      const src = absUrl(attrOf(attrs, 'data-src') || attrOf(attrs, 'data-lazy-src') || attrOf(attrs, 'src'), base);
+      const tiny = [attrOf(attrs, 'width'), attrOf(attrs, 'height')].some((v) => v === '1');
+      if (src && !tiny) out += `<img src="${htmlEsc(src)}" alt="${htmlEsc(attrOf(attrs, 'alt').slice(0, 150))}">`;
+    } else out += `<${name}>`;
+  }
+  out += htmlEsc(decode(body.slice(last)));
+  return out.slice(0, 400_000);
+}
+
+async function browsePage(link: string) {
+  const { html, url } = await fetchPage(link);
+  const title = (meta(html, 'og:title') || plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1])).slice(0, 120);
+  const hasRecipe = findRecipes(html).some((x) => steps(x.recipeInstructions).length >= 2 && ([] as any[]).concat(x.recipeIngredient ?? x.ingredients ?? []).length >= 2);
+  return { url, title, hasRecipe, html: simplify(html, url) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return reply(405, { error: 'method' });
@@ -369,6 +423,19 @@ Deno.serve(async (req) => {
     } catch (e) {
       if (e instanceof ImportError) return reply(e.status, { error: e.code });
       console.log('import failed', String(e));
+      return reply(502, { error: 'import_failed', detail: String((e as Error)?.message ?? e).slice(0, 120) });
+    }
+  }
+
+  // "Browse": a simple copy of a page for the app's window. Needs no Gemini key.
+  if (body.mode === 'browse') {
+    const link = (body as { url?: unknown }).url;
+    if (typeof link !== 'string' || link.length > 500) return reply(400, { error: 'bad_url' });
+    try {
+      return reply(200, await browsePage(link.trim()));
+    } catch (e) {
+      if (e instanceof ImportError) return reply(e.status, { error: e.code });
+      console.log('browse failed', String(e));
       return reply(502, { error: 'import_failed', detail: String((e as Error)?.message ?? e).slice(0, 120) });
     }
   }

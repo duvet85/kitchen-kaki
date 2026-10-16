@@ -210,6 +210,8 @@ export interface AppState {
   dishTweaks?: Record<string, TipTag[]>;
   /** Kitchen tab: how sure the helper feels cooking each dish alone, 1 to 5 (her own rating) */
   confidence?: Record<string, number>;
+  /** Recipe book > Browse and save: links saved from a recipe website, waiting for the owner to check them */
+  savedLinks?: SavedLink[];
   /** Learn While You Cook: what happened each time she cooked a dish (her own words, never a score) */
   learning?: Learning;
   /** Kitchen tab: recognition settings */
@@ -315,4 +317,15 @@ export type Difficulty = 'cutting' | 'heat' | 'flavour' | 'timing' | 'words';
 export interface Learning {
   /** times cooked with the app, the latest difficulties she ticked, and when */
   tries?: Record<string, { n: number; hard: Difficulty[]; last: string }>;
+}
+
+export interface SavedLink {
+  id: string;
+  url: string;
+  at: string;
+  /** reading the page; ready to check (draft); the page has no recipe data this app can read (look); failed; added to the book */
+  status: 'reading' | 'ready' | 'look' | 'failed' | 'added';
+  name?: string;
+  error?: string;
+  draft?: { recipe: Recipe; newItems: NonNullable<AppState['customItems']> };
 }

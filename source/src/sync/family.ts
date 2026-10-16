@@ -247,6 +247,11 @@ export const draftViaFamily = async (cfg: FamilyConfig, text: string, catalogue:
 export const importViaFamily = (cfg: FamilyConfig, url: string) =>
   callGemini<import('../ai/importMap').Imported>(cfg, { mode: 'import', url });
 
+/** "Browse": a simple, script-free copy of a web page for the in-app window. Only the link is sent. */
+export interface Browsed { url: string; title: string; hasRecipe: boolean; html: string }
+export const browseViaFamily = (cfg: FamilyConfig, url: string) =>
+  callGemini<Browsed>(cfg, { mode: 'browse', url });
+
 /** Web recipe search through the same function (Google Search grounding). Only the search text is sent. */
 export const searchViaFamily = (cfg: FamilyConfig, query: string) =>
   callGemini<import('../ai/search').Grounded>(cfg, { mode: 'search', query });
@@ -286,6 +291,9 @@ async function callGemini<T>(cfg: FamilyConfig, body: object): Promise<T> {
   if (status === 401) throw new FamilyError('Supabase refused the call. Untick "Verify JWT" on the translate function.');
   if (code === 'import_failed') throw new FamilyError(`Couldn't read that page${detail ? ` (${detail})` : ''}. Paste the recipe text instead.`);
   if (code === 'gemini' && detail) throw new FamilyError(`No Gemini model answered (${detail}). Tap "Test Gemini" in Settings to see what the key can do.`);
+  if ((body as { mode?: string }).mode === 'browse') throw new FamilyError(status === 400 || code === 'bad_request' || code === 'no_key' || !code
+    ? 'The translate function in Supabase is an older version and cannot show websites in the app yet. Paste the new code into it and Deploy again, or open the site in a new tab.'
+    : "Couldn't open that page here. Open it in a new tab instead.");
   if ((body as { mode?: string }).mode === 'import' && (status === 400 || code === 'bad_request' || code === 'no_key')) throw new FamilyError('The translate function in Supabase is an older version and cannot import links yet. Paste the new code into it and Deploy again.');
   if ((code === 'bad_request' || status === 400) && ['check', 'kaki'].includes((body as { mode?: string }).mode ?? '')) throw new FamilyError('The translate function in Supabase is an older version. Paste the new code into it and Deploy again.');
   if ((body as { mode?: string }).mode === 'import') throw new FamilyError(`Couldn't read that page${status ? ` (the function answered ${status}${code ? `: ${code}` : ''})` : ''}. If it keeps happening, the translate function in Supabase may be an older version: paste the new code into it and Deploy again. Or paste the recipe text instead.`);
