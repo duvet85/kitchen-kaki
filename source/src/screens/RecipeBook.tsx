@@ -501,6 +501,8 @@ const SITES = [
   { name: 'RecipeTin Eats', url: 'https://www.recipetineats.com/recipes/' },
 ];
 const SITE_TAB = 'kitchenkaki-recipe-site';
+type Site = { id: string; name: string; url: string; builtin: boolean };
+
 /** The page as shown in the window: the function's simple copy plus one small script that tells the app which link was tapped. */
 const readerDoc = (html: string) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{font:16px/1.5 system-ui,sans-serif;margin:12px;color:#222;overflow-wrap:anywhere}img{max-width:100%;height:auto;border-radius:8px}a{color:#1f6f4a;cursor:pointer;text-decoration:underline}
@@ -534,6 +536,29 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
   const frame = React.useRef<HTMLIFrameElement | null>(null);
   const goRef = React.useRef<(u: string, back?: boolean) => void>(() => undefined);
   const saved = state.savedLinks ?? [];
+  const rs = state.recipeSites ?? {};
+  const sites: Site[] = [
+    ...SITES.filter((b) => !(rs.hidden ?? []).includes(b.url)).map((b) => ({ id: b.url, name: rs.renamed?.[b.url] ?? b.name, url: b.url, builtin: true })),
+    ...(rs.custom ?? []).map((c) => ({ ...c, builtin: false })),
+  ];
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState('');
+  const setSites = (fn: (r: NonNullable<typeof state.recipeSites>) => NonNullable<typeof state.recipeSites>) => update((st) => ({ ...st, recipeSites: fn(st.recipeSites ?? {}) }));
+  const listed = (u: string) => sites.some((x) => hostOf(x.url) === hostOf(u));
+  const addSite = (u: string, name: string) => {
+    const clean = cleanUrl(u);
+    if (!clean) { setNote("That isn't a web link yet. It needs to start with https://"); return; }
+    if (listed(clean)) { setNote(`${hostOf(clean)} is already in your list.`); return; }
+    setSites((r) => ({ ...r, custom: [...(r.custom ?? []), { id: newId(), name: name.trim().slice(0, 40) || hostOf(clean), url: clean }] }));
+    setManual(null); setNewName(''); setNote(null);
+  };
+  const renameSite = (x: Site, name: string) => setSites((r) => x.builtin
+    ? { ...r, renamed: { ...r.renamed, [x.url]: name } }
+    : { ...r, custom: (r.custom ?? []).map((c) => (c.id === x.id ? { ...c, name } : c)) });
+  const removeSite = (x: Site) => setSites((r) => x.builtin
+    ? { ...r, hidden: [...(r.hidden ?? []), x.url] }
+    : { ...r, custom: (r.custom ?? []).filter((c) => c.id !== x.id) });
+  const mark = (u: string, v: 'ok' | 'fail') => { const h = hostOf(u); if (rs.works?.[h] !== v) setSites((r) => ({ ...r, works: { ...r.works, [h]: v } })); };
   const link = cleanUrl(url);
   const patch = (id: string, p: Partial<SavedLink>) => update((st) => ({ ...st, savedLinks: (st.savedLinks ?? []).map((x) => (x.id === id ? { ...x, ...p } : x)) }));
 
@@ -544,9 +569,11 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
     setLoading(true); setPageError(null); setNote(null); setTried(u);
     try {
       const b = await browseViaFamily(family, u);
+      mark(u, 'ok');
       setPage(b);
       setTrail((t) => (back ? t.slice(0, -1) : [...t, b.url]));
     } catch (e) {
+      mark(u, 'fail');
       setPageError(e instanceof FamilyError ? e.message : "Couldn't open that page here. Open it in a new tab instead.");
     } finally { setLoading(false); }
   };
@@ -620,15 +647,36 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
       <Notice tone="brand" icon="information-circle-outline">{inApp
         ? "Pages open in a simple window here: text, pictures and links, without ads, videos or scripts. Tap a link to move around the site, and Save recipe when you find one. If a site won't open, use \"Open in a new tab\"."
         : "Most recipe websites don't let other apps show their pages inside the app, so the site opens in its own browser tab and stays open there."}</Notice>
-      <Label>1. Pick a website</Label>
+      <Label>{inApp ? 'My recipe websites' : '1. Pick a website'}</Label>
       <Row style={{ gap: 6 }}>
-        {SITES.map((x) => <Chip key={x.name} label={x.name} selected={site === x.url} onPress={() => { setSite(x.url); openSite(x.url); }} />)}
+        {sites.map((x) => {
+          const w = rs.works?.[hostOf(x.url)];
+          return <Chip key={x.id} icon={w === 'ok' ? 'checkmark-circle-outline' : w === 'fail' ? 'warning-outline' : undefined} tone={w === 'fail' ? 'warn' : undefined} label={x.name} selected={site === x.url} onPress={() => { setSite(x.url); openSite(x.url); }} />;
+        })}
+        {!sites.length && <Text style={{ color: C.muted }}>No websites yet. Add one below.</Text>}
       </Row>
-      <Row style={{ marginTop: 8, gap: 8, flexWrap: 'nowrap' }}>
-        <TextInput value={manual ?? ''} onChangeText={setManual} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Or any other website, https://…" placeholderTextColor={C.faint}
-          accessibilityLabel="Other website" style={[input, { flex: 1 }]} onSubmitEditing={() => cleanUrl(manual ?? '') && openSite(cleanUrl(manual ?? '')!)} />
+      <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>{'\u2713 opened last time \u00b7 \u26a0 did not open last time (use "Open in a new tab" for those)'}</Text>
+      <Row style={{ marginTop: 6, gap: 6 }}>
+        <Chip icon="create-outline" label={editing ? 'Done' : 'Rename or remove'} selected={editing} onPress={() => setEditing(!editing)} />
+        {(rs.hidden ?? []).length > 0 && <Chip icon="refresh" label="Bring back suggested sites" onPress={() => setSites((r) => ({ ...r, hidden: [] }))} />}
+      </Row>
+      {editing && sites.map((x) => (
+        <Row key={x.id} style={{ marginTop: 6, gap: 6, flexWrap: 'nowrap' }}>
+          <TextInput value={x.name} onChangeText={(v) => renameSite(x, v)} maxLength={40} accessibilityLabel={`Name of ${hostOf(x.url)}`} style={[input, { flex: 1, minWidth: 0 }]} />
+          <IconButton icon="trash-outline" label={`Remove ${x.name}`} onPress={() => removeSite(x)} />
+        </Row>
+      ))}
+      <Row style={{ marginTop: 10, gap: 8, flexWrap: 'nowrap' }}>
+        <TextInput value={manual ?? ''} onChangeText={setManual} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Add a website, https://…" placeholderTextColor={C.faint}
+          accessibilityLabel="Website address" style={[input, { flex: 1, minWidth: 0 }]} onSubmitEditing={() => cleanUrl(manual ?? '') && openSite(cleanUrl(manual ?? '')!)} />
         <Button small kind="ghost" icon="open-outline" label="Open" disabled={!cleanUrl(manual ?? '')} onPress={() => openSite(cleanUrl(manual ?? '')!)} />
       </Row>
+      {(manual ?? '').trim() !== '' && (
+        <Row style={{ marginTop: 6, gap: 8, flexWrap: 'nowrap' }}>
+          <TextInput value={newName} onChangeText={setNewName} maxLength={40} placeholder="Name (optional)" placeholderTextColor={C.faint} accessibilityLabel="Website name" style={[input, { flex: 1, minWidth: 0 }]} />
+          <Button small icon="add" label="Add to my sites" disabled={!cleanUrl(manual ?? '')} onPress={() => addSite(manual ?? '', newName)} />
+        </Row>
+      )}
       {inApp && (loading || page || pageError) && (
         <View style={{ marginTop: 12, borderWidth: 1, borderColor: C.line, borderRadius: 16, overflow: 'hidden', backgroundColor: C.card }}>
           <Row style={{ gap: 6, flexWrap: 'nowrap', padding: 8, borderBottomWidth: 1, borderColor: C.line }}>
@@ -646,6 +694,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
           })}
           {page && (
             <Row style={{ gap: 8, flexWrap: 'nowrap', padding: 10, borderTopWidth: 1, borderColor: C.line }}>
+              {!listed(page.url) && <Button small kind="ghost" icon="add" label={`Add ${hostOf(page.url)}`} onPress={() => addSite(page.url.replace(/^(https?:\/\/[^/]+).*$/, '$1/'), '')} />}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, color: page.hasRecipe ? C.green : C.faint, fontWeight: '700' }}>{page.hasRecipe ? 'This page has a recipe' : "This doesn't look like a recipe page"}</Text>
               </View>
@@ -669,7 +718,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
       )}
       <Row style={{ gap: 8, flexWrap: 'nowrap' }}>
         <TextInput ref={field} value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://… link of the recipe" placeholderTextColor={C.faint}
-          accessibilityLabel="Recipe link to save" onSubmitEditing={() => save(url)} style={[input, { flex: 1 }]} />
+          accessibilityLabel="Recipe link to save" onSubmitEditing={() => save(url)} style={[input, { flex: 1, minWidth: 0 }]} />
         {WEB && <Button small kind="ghost" icon="clipboard-outline" label="Paste" onPress={paste} />}
       </Row>
       <View style={{ marginTop: 8 }}>

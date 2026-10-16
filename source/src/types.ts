@@ -210,6 +210,8 @@ export interface AppState {
   dishTweaks?: Record<string, TipTag[]>;
   /** Kitchen tab: how sure the helper feels cooking each dish alone, 1 to 5 (her own rating) */
   confidence?: Record<string, number>;
+  /** Recipe book > Browse: the family's own list of recipe websites (the suggested ones can be hidden or renamed too) and which opened last time */
+  recipeSites?: RecipeSites;
   /** Recipe book > Browse and save: links saved from a recipe website, waiting for the owner to check them */
   savedLinks?: SavedLink[];
   /** Learn While You Cook: what happened each time she cooked a dish (her own words, never a score) */
@@ -328,4 +330,14 @@ export interface SavedLink {
   name?: string;
   error?: string;
   draft?: { recipe: Recipe; newItems: NonNullable<AppState['customItems']> };
+}
+
+export interface RecipeSites {
+  custom?: { id: string; name: string; url: string }[];
+  /** suggested sites the owner removed (their addresses) */
+  hidden?: string[];
+  /** new names for suggested sites (address -> name) */
+  renamed?: Record<string, string>;
+  /** whether the window opened the site last time, by host */
+  works?: Record<string, 'ok' | 'fail'>;
 }
