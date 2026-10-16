@@ -509,6 +509,8 @@ body{font:16px/1.5 system-ui,sans-serif;margin:12px;color:#222;overflow-wrap:any
 nav,header,footer,aside{background:#f6f1e7;border-radius:8px;padding:6px 10px;margin:8px 0;font-size:14px}nav a,header a,footer a{margin-right:8px;display:inline-block}li{margin:4px 0}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}
 </style><body>${html}<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a');if(a&&a.dataset.h){e.preventDefault();parent.postMessage({kk:1,go:a.dataset.h},'*')}});</script></body>`;
 
+/** Accepts tiffycooks.com or www.site.com/recipes as well as a full https:// link. */
+const fixUrl = (v: string) => { const t = v.trim(); return cleanUrl(/^https?:\/\//i.test(t) ? t : /^[^\s/]+\.[^\s]+$/.test(t) ? 'https://' + t : t); };
 const hostOf = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[/?#].*$/, '');
 const WEB = Platform.OS === 'web';
 
@@ -546,8 +548,8 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
   const setSites = (fn: (r: NonNullable<typeof state.recipeSites>) => NonNullable<typeof state.recipeSites>) => update((st) => ({ ...st, recipeSites: fn(st.recipeSites ?? {}) }));
   const listed = (u: string) => sites.some((x) => hostOf(x.url) === hostOf(u));
   const addSite = (u: string, name: string) => {
-    const clean = cleanUrl(u);
-    if (!clean) { setNote("That isn't a web link yet. It needs to start with https://"); return; }
+    const clean = fixUrl(u);
+    if (!clean) { setNote("That isn't a website address yet. Try something like tiffycooks.com"); return; }
     if (listed(clean)) { setNote(`${hostOf(clean)} is already in your list.`); return; }
     setSites((r) => ({ ...r, custom: [...(r.custom ?? []), { id: newId(), name: name.trim().slice(0, 40) || hostOf(clean), url: clean }] }));
     setManual(null); setNewName(''); setNote(null);
@@ -667,16 +669,17 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
         </Row>
       ))}
       <Row style={{ marginTop: 10, gap: 8, flexWrap: 'nowrap' }}>
-        <TextInput value={manual ?? ''} onChangeText={setManual} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Add a website, https://…" placeholderTextColor={C.faint}
-          accessibilityLabel="Website address" style={[input, { flex: 1, minWidth: 0 }]} onSubmitEditing={() => cleanUrl(manual ?? '') && openSite(cleanUrl(manual ?? '')!)} />
-        <Button small kind="ghost" icon="open-outline" label="Open" disabled={!cleanUrl(manual ?? '')} onPress={() => openSite(cleanUrl(manual ?? '')!)} />
+        <TextInput value={manual ?? ''} onChangeText={(v) => { setManual(v); setNote(null); }} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Add a website, e.g. tiffycooks.com" placeholderTextColor={C.faint}
+          accessibilityLabel="Website address" style={[input, { flex: 1, minWidth: 0 }]} onSubmitEditing={() => fixUrl(manual ?? '') && openSite(fixUrl(manual ?? '')!)} />
+        <Button small kind="ghost" icon="open-outline" label="Open" disabled={!fixUrl(manual ?? '')} onPress={() => openSite(fixUrl(manual ?? '')!)} />
       </Row>
       {(manual ?? '').trim() !== '' && (
         <Row style={{ marginTop: 6, gap: 8, flexWrap: 'nowrap' }}>
           <TextInput value={newName} onChangeText={setNewName} maxLength={40} placeholder="Name (optional)" placeholderTextColor={C.faint} accessibilityLabel="Website name" style={[input, { flex: 1, minWidth: 0 }]} />
-          <Button small icon="add" label="Add to my sites" disabled={!cleanUrl(manual ?? '')} onPress={() => addSite(manual ?? '', newName)} />
+          <Button small icon="add" label="Add to my sites" disabled={!fixUrl(manual ?? '')} onPress={() => addSite(manual ?? '', newName)} />
         </Row>
       )}
+      {note && <Notice tone="warn" icon="alert-circle-outline">{note}</Notice>}
       {inApp && (loading || page || pageError) && (
         <View style={{ marginTop: 12, borderWidth: 1, borderColor: C.line, borderRadius: 16, overflow: 'hidden', backgroundColor: C.card }}>
           <Row style={{ gap: 6, flexWrap: 'nowrap', padding: 8, borderBottomWidth: 1, borderColor: C.line }}>
@@ -724,7 +727,6 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
       <View style={{ marginTop: 8 }}>
         <Button icon="bookmark" label={inApp ? "Save pasted link" : "Save recipe"} disabled={!link} onPress={() => save(url)} />
       </View>
-      {note && <Notice tone="warn" icon="alert-circle-outline">{note}</Notice>}
       {!family && <Notice tone="warn" icon="people-outline">Reading a page needs family sharing (Supabase) switched on, because a browser can't read other websites by itself.</Notice>}
       <Text style={{ color: C.faint, fontSize: 12, marginTop: 8, lineHeight: 17 }}>Only the link is sent. Each recipe stays linked to its website and credits it. Keep to recipes you may copy: for your own family.</Text>
 
