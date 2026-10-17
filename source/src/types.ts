@@ -328,6 +328,8 @@ export interface SavedLink {
   /** reading the page; ready to check (draft); the page has no recipe data this app can read (look); failed; added to the book */
   status: 'reading' | 'ready' | 'look' | 'failed' | 'added';
   name?: string;
+  /** the family's category (Collection id) it joins once added */
+  collection?: string;
   error?: string;
   draft?: { recipe: Recipe; newItems: NonNullable<AppState['customItems']> };
 }

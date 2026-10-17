@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { CATALOGUE } from '../data/store';
 import { RECIPES } from '../data/recipes';
 import DishPhoto from '../DishPhoto';
@@ -17,6 +17,7 @@ import { DishDetail } from './DishSheets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Sheet, cap } from './FamilyScreen';
 import RecipeTiles from './RecipeTiles';
+import { NewCategory } from './Categories';
 import { useWebRecipes } from './WebRecipes';
 
 const VIEW_KEY = 'kitchenkaki.recipeView';
@@ -131,12 +132,14 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
 export function AddRecipeFlow({ start, url, onClose }: { start: 'import' | 'search' | 'gemini' | 'browse'; url?: string; onClose: () => void }) {
   const [seed, setSeed] = useState<Seed | null>(null);
   const [imported, setImported] = useState<Draft | null>(null);
+  const [finding, setFinding] = useState<string | null>(null);
   return (
     <>
       {start === 'search' && !seed && <SearchRecipes onClose={onClose} onPick={setSeed} onDraftByName={(q) => setSeed({ text: q, auto: false })} />}
       {start === 'import' && !seed && !imported && <ImportLink start={url} onClose={onClose} onDraft={setImported} onSeed={setSeed} />}
       {start === 'browse' && <BrowseSites onClose={onClose} />}
-      {start === 'gemini' && !seed && <AddRecipe onClose={onClose} />}
+      {finding !== null && <BrowseSites query={finding} onClose={onClose} />}
+      {start === 'gemini' && !seed && finding === null && <AddRecipe onClose={onClose} onFind={setFinding} />}
       {imported && <AddRecipe initial={imported} onClose={onClose} />}
       {seed && <AddRecipe seed={seed} onClose={onClose} />}
     </>
@@ -219,7 +222,7 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
 /** Ask Gemini for a draft, then let the owner check and edit everything before it joins the book. */
 type Seed = { text: string; url?: string; name?: string; auto: boolean; image?: string; video?: string; /** a caption pasted from an Instagram post: written up faithfully, never filled in */ instagram?: { account?: string } };
 
-function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void; onSaved?: () => void }) {
+function AddRecipe({ existing, seed, initial, onClose, onSaved, onFind }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void; onSaved?: (id: string) => void; onFind?: (dish: string) => void }) {
   const { state, update, family } = useApp();
   const { key, model } = useAi();
   const [text, setText] = useState(seed?.text ?? '');
@@ -228,6 +231,7 @@ function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: R
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(initial ?? (existing ? { recipe: existing, newItems: {} } : null));
   const on = !!family || (!!key && !!model);
+  const inApp0 = Platform.OS === 'web' && !!family;
 
   const ask = async () => {
     setError(null);
@@ -265,6 +269,10 @@ function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: R
         <TextInput value={text} onChangeText={setText} multiline editable={on} placeholder="e.g. Hokkien mee, or paste a recipe" placeholderTextColor={C.faint}
           accessibilityLabel="Dish name or recipe text" maxLength={4000}
           style={[input, { marginTop: 12, minHeight: 110, textAlignVertical: 'top' }]} />
+        {onFind && inApp0 && text.trim().length > 1 && text.trim().length < 80 && !/\n/.test(text) && (
+          <View style={{ marginTop: 10, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="search" label="Find real recipe pages for this dish" onPress={() => onFind(text.trim())} /></View>
+        )}
+        {onFind && inApp0 && <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>Gemini only writes from what you type, so it can't give a real photo or source link. To get both, find the recipe on a real website here, tap Save recipe, and the page's own photo and link come with it.</Text>}
         <Label>Source link (optional)</Label>
         <TextInput value={link} onChangeText={setLink} placeholder="https://… the page the recipe came from" placeholderTextColor={C.faint} autoCapitalize="none" autoCorrect={false}
           accessibilityLabel="Source link" style={input} />
@@ -288,7 +296,7 @@ function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: R
           // a changed recipe needs fresh translations
           aiTranslations: Object.fromEntries(Object.entries(st.aiTranslations ?? {}).filter(([id]) => id !== d.recipe.id)),
         }));
-        onSaved?.();
+        onSaved?.(d.recipe.id);
         onClose();
       }} />
   );
@@ -297,7 +305,11 @@ function AddRecipe({ existing, seed, initial, onClose, onSaved }: { existing?: R
 const stripVideo = (r: Recipe): Recipe => { const { videoUrl: _v, ...rest } = r; return rest; };
 
 function Review({ draft, isEdit, refreshing, onSave, onDiscard, onClose }: { draft: Draft; isEdit: boolean; refreshing?: boolean; onSave: (d: Draft) => void; onDiscard: () => void; onClose: () => void }) {
+  const { family } = useApp();
   const [r, setR] = useState<Recipe>(draft.recipe);
+  const [photoText, setPhotoText] = useState(draft.recipe.imageUrl ?? '');
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [linkText, setLinkText] = useState(draft.recipe.sourceUrl ?? '');
   const [videoText, setVideoText] = useState(draft.recipe.videoUrl ?? '');
   // a link that came with the draft (like a search result's) is kept as it is; anything typed must be a YouTube video link
@@ -328,6 +340,24 @@ function Review({ draft, isEdit, refreshing, onSave, onDiscard, onClose }: { dra
       <TextInput value={linkText} autoCapitalize="none" autoCorrect={false} placeholder="https://… (leave empty if none)" placeholderTextColor={C.faint} accessibilityLabel="Source link"
         onChangeText={(v) => { setLinkText(v); setR((x) => { const { sourceUrl: _u, ...rest } = x; const u = cleanUrl(v); const { sourceName: _n, ...bare } = rest; return u ? { ...(u === draft.recipe.sourceUrl ? rest : bare), sourceUrl: u, source: u === draft.recipe.sourceUrl ? draft.recipe.source : (draft.recipe.imported ? `Imported from ${draft.recipe.sourceName ?? 'a website'} (link changed by the family)` : 'Supplied by the family (AI-drafted from it)') } : { ...rest, source: 'No source given (AI-drafted)' }; }); }} style={input} />
       <Text style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{r.sourceUrl ? 'Shown as a clickable link on the recipe.' : linkText.trim() ? 'That is not a web link yet. It needs to start with https://' : 'Shows "No source given" until you add a real link.'}</Text>
+
+      <Label>Photo of the dish (optional)</Label>
+      <Row style={{ gap: 10, flexWrap: 'nowrap' }}>
+        {r.imageUrl ? <Image source={{ uri: r.imageUrl }} accessibilityLabel="Photo of the dish" style={{ width: 56, height: 56, borderRadius: 12, backgroundColor: C.line }} /> : null}
+        <TextInput value={photoText} autoCapitalize="none" autoCorrect={false} placeholder="https://… link of a photo" placeholderTextColor={C.faint} accessibilityLabel="Photo link"
+          onChangeText={(v) => { setPhotoText(v); setPhotoNote(null); const u = cleanUrl(v); setR((x) => { const { imageUrl: _i, ...rest } = x; return u ? { ...rest, imageUrl: u } : rest; }); }} style={[input, { flex: 1, minWidth: 0 }]} />
+      </Row>
+      {family && r.sourceUrl && !r.imageUrl && !isInstagram(r.sourceUrl) && (
+        <View style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+          <Button small kind="ghost" icon="image-outline" label={photoBusy ? 'Looking…' : 'Get the photo from the source link'} disabled={photoBusy} onPress={async () => {
+            setPhotoBusy(true); setPhotoNote(null);
+            try { const imp = await importViaFamily(family, r.sourceUrl!); const u = cleanUrl(imp.image); if (u) { setPhotoText(u); setR((x) => ({ ...x, imageUrl: u })); } else setPhotoNote("That page has no photo this app can use."); }
+            catch (e) { setPhotoNote(e instanceof FamilyError ? e.message : "Couldn't read that page."); }
+            finally { setPhotoBusy(false); }
+          }} />
+        </View>
+      )}
+      <Text style={{ color: photoNote ? C.amber : C.muted, fontSize: 12, marginTop: 6 }}>{photoNote ?? (r.imageUrl ? "The photo is linked from its website, not copied, so it shows only while the site keeps it online." : photoText.trim() ? 'That is not a web link yet. It needs to start with https://' : draft.recipe.aiDrafted ? "Gemini can't supply a real photo. Add a source link and tap the button, or paste a photo link. You can also take your own photo later." : 'No photo yet. Paste a photo link, or take your own photo later.')}</Text>
 
       <Label>YouTube video (optional)</Label>
       <TextInput value={videoText} autoCapitalize="none" autoCorrect={false} placeholder="https://www.youtube.com/watch?v=…" placeholderTextColor={C.faint} accessibilityLabel="YouTube link" onChangeText={setVideoText} style={input} />
@@ -519,7 +549,7 @@ const WEB = Platform.OS === 'web';
  * Most recipe sites don't allow other apps to show their pages inside the app, so the site stays in its own tab.
  * Each saved link is read in the background and waits in a list: nothing joins the recipe book until the owner has checked it.
  */
-function BrowseSites({ onClose }: { onClose: () => void }) {
+function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }) {
   const { state, update, family } = useApp();
   const [url, setUrl] = useState('');
   const [site, setSite] = useState('');
@@ -535,6 +565,10 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [tried, setTried] = useState('');
+  const [browsing, setBrowsing] = useState(false);
+  const [q, setQ] = useState('');
+  const [pickCol, setPickCol] = useState<string | null>(null);
+  const [makingCol, setMakingCol] = useState(false);
   const frame = React.useRef<HTMLIFrameElement | null>(null);
   const goRef = React.useRef<(u: string, back?: boolean) => void>(() => undefined);
   const saved = state.savedLinks ?? [];
@@ -566,13 +600,14 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
 
   // the window inside the app: the function fetches the page, the app shows a simple copy and decides what opens next
   const go = async (raw: string, back = false) => {
-    const u = cleanUrl(raw);
+    let u = cleanUrl(raw);
+    if (u) { try { const x = new URL(u); const real = /(^|\.)duckduckgo\.com$/.test(x.hostname) && x.pathname.startsWith('/l/') ? x.searchParams.get('uddg') : null; if (real) u = cleanUrl(real) ?? u; } catch { /* keep the link as it is */ } }
     if (!u || !family) return;
-    setLoading(true); setPageError(null); setNote(null); setTried(u);
+    setBrowsing(true); setLoading(true); setPageError(null); setNote(null); setTried(u);
     try {
       const b = await browseViaFamily(family, u);
       mark(u, 'ok');
-      setPage(b);
+      setPage(b); setQ(b.url);
       setTrail((t) => (back ? t.slice(0, -1) : [...t, b.url]));
     } catch (e) {
       mark(u, 'fail');
@@ -581,6 +616,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
   };
   goRef.current = go;
   const inApp = WEB && !!family;
+  useEffect(() => { if (query && inApp) { setQ(query); void goRef.current('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query)); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!inApp || typeof window === 'undefined') return;
     const on = (e: MessageEvent) => {
@@ -590,6 +626,14 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
     window.addEventListener('message', on);
     return () => window.removeEventListener('message', on);
   }, [inApp]);
+  const closeBrowser = () => { setBrowsing(false); setPage(null); setPageError(null); setTrail([]); setTried(''); };
+  /** What was typed in the address bar: a website address opens, anything else is searched for. */
+  const submitBar = () => {
+    const t = q.trim(); if (!t) return;
+    const u = fixUrl(t);
+    go(u ?? 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(t));
+  };
+  const onSearchPage = !!page && /(^|\.)duckduckgo\.com$/.test(hostOf(page.url).split('/')[0]);
   const back = () => { const prev = trail[trail.length - 2]; if (prev) go(prev, true); };
   const openSite = (u: string) => (inApp ? go(u) : open(u));
 
@@ -615,7 +659,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
     return () => { window.removeEventListener('focus', on); document.removeEventListener('visibilitychange', on); };
   });
 
-  const save = async (raw: string) => {
+  const save = async (raw: string, col?: string) => {
     const u = cleanUrl(raw);
     setNote(null);
     if (!u) { setNote("That isn't a web link yet. It needs to start with https://"); return; }
@@ -623,7 +667,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
     if (!looksNew(u)) { setNote('You already saved that one.'); setUrl(''); setOffer(null); return; }
     if (!family) { setNote('Reading a page needs family sharing (Supabase) switched on.'); return; }
     const id = newId();
-    update((st) => ({ ...st, savedLinks: [{ id, url: u, at: new Date().toISOString(), status: 'reading' as const }, ...(st.savedLinks ?? [])].slice(0, 40) }));
+    update((st) => ({ ...st, savedLinks: [{ id, url: u, at: new Date().toISOString(), status: 'reading' as const, ...(col ? { collection: col } : {}) }, ...(st.savedLinks ?? [])].slice(0, 40) }));
     setUrl(''); setOffer(null);
     setTimeout(() => field.current?.focus(), 50);
     try {
@@ -641,6 +685,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
       navigator.clipboard.readText().then((t) => { const u = cleanUrl(t); if (u) setUrl(u); else setNote('Nothing that looks like a web link was copied.'); }).catch(() => setNote("This browser didn't allow pasting. Paste into the box instead."));
     } catch { setNote("This browser didn't allow pasting. Paste into the box instead."); }
   };
+  const colName = (id?: string) => { const c = (state.collections ?? []).find((x) => x.id === id); return c ? `${c.emoji} ${c.name}` : ''; };
   const waiting = saved.filter((x) => x.status === 'ready').length;
 
   return (
@@ -680,33 +725,64 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
         </Row>
       )}
       {note && <Notice tone="warn" icon="alert-circle-outline">{note}</Notice>}
-      {inApp && (loading || page || pageError) && (
-        <View style={{ marginTop: 12, borderWidth: 1, borderColor: C.line, borderRadius: 16, overflow: 'hidden', backgroundColor: C.card }}>
-          <Row style={{ gap: 6, flexWrap: 'nowrap', padding: 8, borderBottomWidth: 1, borderColor: C.line }}>
-            <IconButton icon="arrow-back" label="Back" onPress={back} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{page ? page.title || hostOf(page.url) : ' '}</Text>
-              <Text style={{ fontSize: 11, color: C.faint }} numberOfLines={1}>{page ? hostOf(page.url) + page.url.replace(/^https?:\/\/[^/]+/, '') : loading ? 'Opening…' : ''}</Text>
-            </View>
-            {loading && <ActivityIndicator color={C.brand} />}
-            {page && <IconButton icon="open-outline" label="Open this page in a new tab" onPress={() => open(page.url)} />}
-          </Row>
-          {pageError && <View style={{ padding: 12 }}><Notice tone="warn" icon="alert-circle-outline">{pageError}</Notice>{tried !== '' && <View style={{ marginTop: 8, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Open in a new tab instead" onPress={() => open(tried)} /></View>}</View>}
-          {page && React.createElement('iframe', {
-            ref: frame, title: 'Recipe website', sandbox: 'allow-scripts', srcDoc: readerDoc(page.html), style: { width: '100%', height: 420, border: 0, display: 'block', backgroundColor: '#fff' },
-          })}
-          {page && (
-            <Row style={{ gap: 8, flexWrap: 'nowrap', padding: 10, borderTopWidth: 1, borderColor: C.line }}>
-              {!listed(page.url) && <Button small kind="ghost" icon="add" label={`Add ${hostOf(page.url)}`} onPress={() => addSite(page.url.replace(/^(https?:\/\/[^/]+).*$/, '$1/'), '')} />}
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: page.hasRecipe ? C.green : C.faint, fontWeight: '700' }}>{page.hasRecipe ? 'This page has a recipe' : "This doesn't look like a recipe page"}</Text>
-              </View>
-              {saved.some((x) => x.url === page.url) || (state.customRecipes ?? []).some((r) => r.sourceUrl === page.url)
-                ? <Chip tone="good" icon="checkmark" label="Saved" />
-                : <Button small icon="bookmark" label="Save recipe" onPress={() => save(page.url)} />}
-            </Row>
-          )}
+      {inApp && (
+        <View style={{ marginTop: 12 }}>
+          <Button icon="search" label="Open the browser and search the web" onPress={() => { setBrowsing(true); }} />
         </View>
+      )}
+      {inApp && browsing && (
+        <Modal animationType="slide" onRequestClose={closeBrowser}>
+          <View style={{ flex: 1, backgroundColor: C.bg }}>
+            <Row style={{ gap: 6, flexWrap: 'nowrap', padding: 8, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
+              <IconButton icon="close" label="Close the browser" onPress={closeBrowser} />
+              <IconButton icon="arrow-back" label="Back" onPress={back} />
+              <TextInput value={q} onChangeText={setQ} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Search the web or type a website" placeholderTextColor={C.faint}
+                accessibilityLabel="Search or website address" onSubmitEditing={submitBar} returnKeyType="go" style={[input, { flex: 1, minWidth: 0, paddingVertical: 8 }]} />
+              {loading ? <ActivityIndicator color={C.brand} /> : <IconButton icon="arrow-forward" label="Go" onPress={submitBar} />}
+            </Row>
+            <View style={{ flex: 1, minHeight: 0 }}>
+              {pageError && <View style={{ padding: 12 }}><Notice tone="warn" icon="alert-circle-outline">{pageError}</Notice>{tried !== '' && <View style={{ marginTop: 8, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Open in a new tab instead" onPress={() => open(tried)} /></View>}</View>}
+              {!page && !pageError && !loading && (
+                <ScrollView contentContainerStyle={{ padding: 16 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 16 }}>Search for a recipe, or open one of your websites</Text>
+                  <Text style={{ color: C.muted, marginTop: 4 }}>Type what you want to cook in the bar above, for example "chicken rice". Results open here. Tap a result, then Save recipe.</Text>
+                  <Row style={{ gap: 6, marginTop: 12 }}>
+                    {sites.map((x) => <Chip key={x.id} label={x.name} onPress={() => go(x.url)} />)}
+                  </Row>
+                  <View style={{ marginTop: 14, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Search Google in a new tab" onPress={() => open('https://www.google.com/search?q=' + encodeURIComponent((q.trim() || 'easy dinner') + ' recipe'))} /></View>
+                  <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Google doesn't allow its results to be shown inside other apps, so the search here uses DuckDuckGo.</Text>
+                </ScrollView>
+              )}
+              {page && React.createElement('iframe', {
+                ref: frame, title: 'Recipe website', sandbox: 'allow-scripts', srcDoc: readerDoc(page.html), style: { width: '100%', height: '100%', border: 0, display: 'block', backgroundColor: '#fff' },
+              })}
+            </View>
+            {page && (
+              <View style={{ padding: 10, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.card, gap: 8 }}>
+                {onSearchPage ? <Text style={{ color: C.muted, fontSize: 13 }}>Tap a result to open it. Save recipe appears on the recipe page.</Text> : (
+                  <>
+                    <Row style={{ gap: 6 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: C.muted }}>Save into:</Text>
+                      <Chip label="No category" selected={!pickCol} onPress={() => setPickCol(null)} />
+                      {(state.collections ?? []).map((c) => <Chip key={c.id} label={`${c.emoji} ${c.name}`} selected={pickCol === c.id} onPress={() => setPickCol(c.id)} />)}
+                      <Chip icon="add" label="New category" onPress={() => setMakingCol(true)} />
+                    </Row>
+                    <Row style={{ gap: 8, flexWrap: 'nowrap' }}>
+                      {!listed(page.url) && <Button small kind="ghost" icon="add" label={`Add ${hostOf(page.url).split('/')[0]}`} onPress={() => addSite(page.url.replace(/^(https?:\/\/[^/]+).*$/, '$1/'), '')} />}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: page.hasRecipe ? C.green : C.faint, fontWeight: '700' }}>{page.hasRecipe ? 'This page has a recipe' : "This doesn't look like a recipe page"}</Text>
+                      </View>
+                      {saved.some((x) => x.url === page.url) || (state.customRecipes ?? []).some((r) => r.sourceUrl === page.url)
+                        ? <Chip tone="good" icon="checkmark" label="Saved" />
+                        : <Button small icon="bookmark" label="Save recipe" onPress={() => save(page.url, pickCol ?? undefined)} />}
+                    </Row>
+                  </>
+                )}
+              </View>
+            )}
+            {makingCol && <NewCategory onClose={() => setMakingCol(false)} onDone={(c) => { setMakingCol(false); setPickCol(c.id); }} />}
+          </View>
+        </Modal>
       )}
       <Label>{inApp ? 'Or paste a link to save' : "2. Copy the recipe's link, then save it here"}</Label>
       {offer && (
@@ -734,9 +810,10 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
       {saved.map((x) => (
         <View key={x.id} style={{ borderTopWidth: 1, borderColor: C.line, paddingVertical: 10 }}>
           <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
+            {x.draft?.recipe.imageUrl ? <Image source={{ uri: x.draft.recipe.imageUrl }} accessibilityLabel={`Photo of ${x.name ?? 'the dish'}`} style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.line }} /> : null}
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: '700' }} numberOfLines={2}>{x.name ?? hostOf(x.url)}</Text>
-              <Text style={{ color: C.faint, fontSize: 12 }} numberOfLines={1}>{hostOf(x.url)}</Text>
+              <Text style={{ color: C.faint, fontSize: 12 }} numberOfLines={1}>{hostOf(x.url)}{colName(x.collection) ? ` · ${colName(x.collection)}` : ''}</Text>
             </View>
             {x.status === 'reading' && <ActivityIndicator color={C.brand} />}
             {x.status === 'added' && <Chip tone="good" icon="checkmark" label="Added" />}
@@ -752,7 +829,7 @@ function BrowseSites({ onClose }: { onClose: () => void }) {
           )}
         </View>
       ))}
-      {checking?.draft && <AddRecipe initial={checking.draft} onClose={() => setChecking(null)} onSaved={() => patch(checking.id, { status: 'added', draft: undefined })} />}
+      {checking?.draft && <AddRecipe initial={checking.draft} onClose={() => setChecking(null)} onSaved={(rid) => { patch(checking.id, { status: 'added', draft: undefined }); const cid = checking.collection; if (cid) update((st) => ({ ...st, collections: (st.collections ?? []).map((c) => (c.id === cid && !c.ids.includes(rid) ? { ...c, ids: [...c.ids, rid] } : c)) })); }} />}
       {lookAt && <AddRecipeFlow start="import" url={lookAt} onClose={() => setLookAt(null)} />}
     </Sheet>
   );
