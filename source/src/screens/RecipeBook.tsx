@@ -9,7 +9,7 @@ import { GeminiError, draftRecipeText, searchRecipesGrounded } from '../ai/gemin
 import { localDate } from '../engine/recognition';
 import { RecipeOption, parseOptions } from '../ai/search';
 import { Imported, importedToDraft } from '../ai/importMap';
-import { Browsed, FamilyError, browseViaFamily, draftViaFamily, importViaFamily, searchViaFamily } from '../sync/family';
+import { Browsed, FamilyError, browseViaFamily, findViaFamily, draftViaFamily, importViaFamily, searchViaFamily } from '../sync/family';
 import { newId, useApp } from '../state';
 import { Allergen, Recipe, SavedLink } from '../types';
 import { Button, C, Card, Chip, F, Icon, IconButton, Label, Notice, P, Row, Stepper, Text, chillies } from '../ui';
@@ -114,7 +114,7 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
       ))}
       {!rows.length && <Text style={{ color: C.muted, marginTop: 10 }}>Nothing matches “{q}”.</Text>}
       {browsing && <BrowseSites onClose={() => setBrowsing(false)} />}
-      {searching && <SearchRecipes onClose={() => setSearching(false)} onPick={(sd) => { setSearching(false); setSeed(sd); }} onDraftByName={(q) => { setSearching(false); setSeed({ text: q, auto: false }); }} />}
+      {searching && <SearchRecipes onClose={() => setSearching(false)} onPick={(sd) => { setSearching(false); setSeed(sd); }} onDraft={(draft) => { setSearching(false); setImported({ draft }); }} onDraftByName={(q) => { setSearching(false); setSeed({ text: q, auto: false }); }} />}
       {importing && (
         <ImportLink start={importing.url} refresh={importing.refresh} onClose={() => setImporting(null)}
           onDraft={(draft) => { setImported({ draft, refresh: importing.refresh }); setImporting(null); }}
@@ -129,15 +129,15 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
 }
 
 /** One way of adding a recipe, opened straight from the Home page (no recipe book behind it). */
-export function AddRecipeFlow({ start, url, onClose }: { start: 'import' | 'search' | 'gemini' | 'browse'; url?: string; onClose: () => void }) {
+export function AddRecipeFlow({ start, url, saveUrl, onClose }: { start: 'import' | 'search' | 'gemini' | 'browse'; url?: string; saveUrl?: string; onClose: () => void }) {
   const [seed, setSeed] = useState<Seed | null>(null);
   const [imported, setImported] = useState<Draft | null>(null);
   const [finding, setFinding] = useState<string | null>(null);
   return (
     <>
-      {start === 'search' && !seed && <SearchRecipes onClose={onClose} onPick={setSeed} onDraftByName={(q) => setSeed({ text: q, auto: false })} />}
+      {start === 'search' && !seed && !imported && <SearchRecipes onClose={onClose} onPick={setSeed} onDraft={setImported} onDraftByName={(q) => setSeed({ text: q, auto: false })} />}
       {start === 'import' && !seed && !imported && <ImportLink start={url} onClose={onClose} onDraft={setImported} onSeed={setSeed} />}
-      {start === 'browse' && <BrowseSites onClose={onClose} />}
+      {start === 'browse' && <BrowseSites saveUrl={saveUrl} onClose={onClose} />}
       {finding !== null && <BrowseSites query={finding} onClose={onClose} />}
       {start === 'gemini' && !seed && finding === null && <AddRecipe onClose={onClose} onFind={setFinding} />}
       {imported && <AddRecipe initial={imported} onClose={onClose} />}
@@ -151,13 +151,15 @@ const SEARCH_LIMIT = 20;
 const dishOf = (q: string) => q.replace(/^\s*(please\s+)?(search|find|look)( for)?( me)?( some)?( new)?( recipes?)?( for| of)?\s*/i, '').trim() || q.trim();
 
 /** Web search for recipes. Needs Gemini with Google Search; the links come from the search results themselves. */
-function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void; onPick: (s: Seed) => void; onDraftByName: (dish: string) => void }) {
+function SearchRecipes({ onClose, onPick, onDraft, onDraftByName }: { onClose: () => void; onPick: (s: Seed) => void; onDraft: (d: Draft) => void; onDraftByName: (dish: string) => void }) {
   const { state, update, family } = useApp();
   const { key, model } = useAi();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ msg: string; offer: boolean } | null>(null);
   const [options, setOptions] = useState<RecipeOption[] | null>(null);
+  const [real, setReal] = useState<{ imp: Imported; draft: Draft }[] | null>(null);
+  const [phase, setPhase] = useState('');
   const on = !!family || (!!key && !!model);
   const today = localDate();
   const used = state.searchLog?.day === today ? state.searchLog.n : 0;
@@ -167,6 +169,22 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
     setOptions(null);
     if (used >= SEARCH_LIMIT) { setError({ msg: `That's ${SEARCH_LIMIT} searches today, which keeps Google Search use small. Try again tomorrow, or draft a recipe from a dish name.`, offer: true }); return; }
     setBusy(true);
+    setReal(null);
+    // 1. free: the recipe websites' own search, each hit read from its own recipe data (real link and photo)
+    if (family) {
+      setPhase('Searching your recipe websites…');
+      try {
+        const rs = state.recipeSites ?? {};
+        const urls = [...SITES.filter((b) => !(rs.hidden ?? []).includes(b.url)).map((b) => b.url), ...(rs.custom ?? []).map((c) => c.url)];
+        const f = await findViaFamily(family, q.trim(), urls);
+        const got = f.results.flatMap((imp) => { const d = importedToDraft(imp); return d ? [{ imp, draft: d }] : []; });
+        if (got.length) { setReal(got); setBusy(false); return; }
+      } catch (e) {
+        if (e instanceof FamilyError && /older version/.test(e.message)) { setError({ msg: e.message, offer: true }); setBusy(false); return; }
+        /* the free search found nothing: try Gemini's web search next */
+      }
+    }
+    setPhase('Trying Gemini web search…');
     try {
       const g = family ? await searchViaFamily(family, q.trim()) : await searchRecipesGrounded(key!, q.trim());
       // Only searches Google actually ran count towards the daily limit.
@@ -185,13 +203,13 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
 
   return (
     <Sheet title="Search for a recipe" onClose={onClose}>
-      <P style={{ color: C.muted, marginTop: 10 }}>Type what you're after, like "Search for new recipes for chicken rice". You get up to 3 recipes from real web pages or YouTube, each with a link. Pick one and check it before it joins the book.</P>
+      <P style={{ color: C.muted, marginTop: 10 }}>Type a dish, like "hokkien mee". The app searches your recipe websites and shows real recipes with their link and photo. If none turn up, Gemini's web search is tried (it needs a paid Google plan). Pick one and check it before it joins the book.</P>
       {!on && <Notice tone="warn" icon="sparkles-outline">Gemini is OFF, so searching isn't possible. Turn it on in Settings (family sharing is best), then come back.</Notice>}
       <TextInput value={q} onChangeText={setQ} editable={on} onSubmitEditing={() => on && q.trim().length > 1 && !busy && run()} returnKeyType="search" maxLength={200}
         placeholder="Search for new recipes for…" placeholderTextColor={C.faint} accessibilityLabel="Recipe search" style={[input, { marginTop: 12 }]} />
-      <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Only what you type here goes to Gemini and Google Search. Nothing about your family does. Searches today: {used} of {SEARCH_LIMIT}.</Text>
+      <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Only what you type here is sent, to the recipe websites and, if needed, to Gemini and Google Search. Nothing about your family is. Searches today: {used} of {SEARCH_LIMIT}.</Text>
       <View style={{ marginTop: 12 }}>
-        {busy ? <Row style={{ gap: 10 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>Searching the web…</Text></Row>
+        {busy ? <Row style={{ gap: 10 }}><ActivityIndicator color={C.brand} /><Text style={{ color: C.muted }}>{phase || 'Searching…'}</Text></Row>
           : <Button icon="search" label="Search" disabled={!on || q.trim().length < 2} onPress={run} />}
       </View>
       {error && (
@@ -200,6 +218,23 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
           {error.offer && q.trim().length > 1 && <View style={{ marginTop: 8 }}><Button kind="ghost" icon="sparkles" label={`Draft "${dishOf(q)}" from its name instead`} onPress={() => onDraftByName(dishOf(q))} /></View>}
         </View>
       )}
+      {real?.map(({ imp, draft }) => (
+        <Card key={imp.url} style={{ marginTop: 14, padding: 14 }}>
+          <Row style={{ gap: 12, flexWrap: 'nowrap' }}>
+            {imp.image && cleanUrl(imp.image) ? <Image source={{ uri: imp.image }} accessibilityLabel={`Photo of ${imp.name}`} style={{ width: 72, height: 72, borderRadius: 12, backgroundColor: C.line }} /> : null}
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: F.display, fontSize: 17 }}>{imp.name}</Text>
+              <Row style={{ marginTop: 6 }}><Chip tone="brand" icon="globe-outline" label={imp.site} /><Chip tone="plain" label={`${imp.steps?.length ?? 0} steps`} />{imp.minutes ? <Chip tone="plain" label={`${imp.minutes} min`} /> : null}</Row>
+            </View>
+          </Row>
+          <Text style={{ color: C.muted, fontSize: 13, marginTop: 8, lineHeight: 19 }}>{(imp.ingredients ?? []).slice(0, 4).join(', ')}{(imp.ingredients?.length ?? 0) > 4 ? ` and ${(imp.ingredients?.length ?? 0) - 4} more` : ''}</Text>
+          <Row style={{ marginTop: 12, gap: 8 }}>
+            <Button small kind="ghost" icon="open-outline" label={`Open ${imp.site}`} onPress={() => Linking.openURL(imp.url)} />
+            <Button small icon="add" label="Use this recipe" onPress={() => onDraft(draft)} />
+          </Row>
+        </Card>
+      ))}
+      {real && <Text style={{ color: C.faint, fontSize: 12, marginTop: 12 }}>These are the websites' own recipes, word for word, with their link and photo. Check each one before it joins the book.</Text>}
       {options?.map((o) => (
         <Card key={o.url + o.title} style={{ marginTop: 14, padding: 14 }}>
           <Text style={{ fontFamily: F.display, fontSize: 17 }}>{o.title}</Text>
@@ -222,7 +257,7 @@ function SearchRecipes({ onClose, onPick, onDraftByName }: { onClose: () => void
 /** Ask Gemini for a draft, then let the owner check and edit everything before it joins the book. */
 type Seed = { text: string; url?: string; name?: string; auto: boolean; image?: string; video?: string; /** a caption pasted from an Instagram post: written up faithfully, never filled in */ instagram?: { account?: string } };
 
-function AddRecipe({ existing, seed, initial, onClose, onSaved, onFind }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void; onSaved?: (id: string) => void; onFind?: (dish: string) => void }) {
+export function AddRecipe({ existing, seed, initial, onClose, onSaved, onFind }: { existing?: Recipe; seed?: Seed; initial?: Draft; onClose: () => void; onSaved?: (id: string) => void; onFind?: (dish: string) => void }) {
   const { state, update, family } = useApp();
   const { key, model } = useAi();
   const [text, setText] = useState(seed?.text ?? '');
@@ -541,6 +576,10 @@ nav,header,footer,aside{background:#f6f1e7;border-radius:8px;padding:6px 10px;ma
 
 /** Accepts tiffycooks.com or www.site.com/recipes as well as a full https:// link. */
 const fixUrl = (v: string) => { const t = v.trim(); return cleanUrl(/^https?:\/\//i.test(t) ? t : /^[^\s/]+\.[^\s]+$/.test(t) ? 'https://' + t : t); };
+/** The web search page, not a recipe site. */
+const isWebSearch = (u: string) => /^https?:\/\/html\.duckduckgo\.com\//i.test(u);
+/** A recipe site's own search page (most recipe sites run on WordPress, which answers /?s=words). */
+const siteSearch = (siteUrl: string, words: string) => { try { return new URL(siteUrl).origin + '/?s=' + encodeURIComponent(words); } catch { return siteUrl; } };
 const hostOf = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/[/?#].*$/, '');
 const WEB = Platform.OS === 'web';
 
@@ -549,7 +588,7 @@ const WEB = Platform.OS === 'web';
  * Most recipe sites don't allow other apps to show their pages inside the app, so the site stays in its own tab.
  * Each saved link is read in the background and waits in a list: nothing joins the recipe book until the owner has checked it.
  */
-function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }) {
+function BrowseSites({ onClose, query, saveUrl }: { onClose: () => void; query?: string; saveUrl?: string }) {
   const { state, update, family } = useApp();
   const [url, setUrl] = useState('');
   const [site, setSite] = useState('');
@@ -567,6 +606,8 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
   const [tried, setTried] = useState('');
   const [browsing, setBrowsing] = useState(false);
   const [q, setQ] = useState('');
+  const [words, setWords] = useState('');
+  const [sharedNote, setSharedNote] = useState<string | null>(null);
   const [pickCol, setPickCol] = useState<string | null>(null);
   const [makingCol, setMakingCol] = useState(false);
   const frame = React.useRef<HTMLIFrameElement | null>(null);
@@ -606,6 +647,7 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
     setBrowsing(true); setLoading(true); setPageError(null); setNote(null); setTried(u);
     try {
       const b = await browseViaFamily(family, u);
+      if (isWebSearch(u) && !b.html.includes('uddg=')) { setPageError("The web search didn't answer the app (search engines often refuse automated visits). Search one of your recipe sites below instead, or use Google in a new tab."); return; }
       mark(u, 'ok');
       setPage(b); setQ(b.url);
       setTrail((t) => (back ? t.slice(0, -1) : [...t, b.url]));
@@ -616,7 +658,7 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
   };
   goRef.current = go;
   const inApp = WEB && !!family;
-  useEffect(() => { if (query && inApp) { setQ(query); void goRef.current('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query)); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (query && inApp) { setQ(query); setWords(query); const f = (state.recipeSites?.custom?.[0]?.url) ?? SITES[0].url; void goRef.current(siteSearch(f, query)); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!inApp || typeof window === 'undefined') return;
     const on = (e: MessageEvent) => {
@@ -631,7 +673,10 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
   const submitBar = () => {
     const t = q.trim(); if (!t) return;
     const u = fixUrl(t);
-    go(u ?? 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(t));
+    if (u) { go(u); return; }
+    setWords(t);
+    const first = sites.find((x) => rs.works?.[hostOf(x.url)] !== 'fail') ?? sites[0];
+    go(first ? siteSearch(first.url, t) : 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(t));
   };
   const onSearchPage = !!page && /(^|\.)duckduckgo\.com$/.test(hostOf(page.url).split('/')[0]);
   const back = () => { const prev = trail[trail.length - 2]; if (prev) go(prev, true); };
@@ -674,7 +719,14 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
       const imp = await importViaFamily(family, u);
       const d = imp.found ? importedToDraft(imp) : null;
       if (d) patch(id, { status: 'ready', name: d.recipe.name, draft: d });
-      else patch(id, { status: 'look', name: imp.name || imp.site || hostOf(u) });
+      else {
+        // no recipe the app can read by itself: Gemini writes it up from the page's own text (free plan is enough); link and photo stay the page's
+        const g = !imp.found && imp.text && imp.text.length > 200 ? await draftViaFamily(family, imp.text.slice(0, 7000), catalogueLines(), false).catch(() => null) : null;
+        const n = g ? normaliseDraft(g, u, imp.site) : null;
+        const img = cleanUrl(imp.image);
+        if (n) patch(id, { status: 'ready', name: n.recipe.name, draft: { ...n, recipe: { ...n.recipe, ...(img ? { imageUrl: img } : {}) } } });
+        else patch(id, { status: 'look', name: imp.name || imp.site || hostOf(u) });
+      }
     } catch (e) {
       patch(id, { status: 'failed', error: e instanceof FamilyError ? e.message : 'Reading the page failed.' });
     }
@@ -686,10 +738,22 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
     } catch { setNote("This browser didn't allow pasting. Paste into the box instead."); }
   };
   const colName = (id?: string) => { const c = (state.collections ?? []).find((x) => x.id === id); return c ? `${c.emoji} ${c.name}` : ''; };
+  // a page shared from the phone's Share button: save it once family sharing has loaded
+  const sharedDone = React.useRef(false);
+  useEffect(() => {
+    if (!saveUrl || sharedDone.current) return;
+    const u = cleanUrl(saveUrl.trim()) ?? firstUrl(saveUrl);
+    if (!u) { sharedDone.current = true; setNote("What was shared isn't a web link."); return; }
+    if (!family) return;
+    sharedDone.current = true;
+    setSharedNote(hostOf(u));
+    void save(u);
+  }, [family, saveUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const waiting = saved.filter((x) => x.status === 'ready').length;
 
   return (
     <Sheet title="Browse and save recipes" onClose={onClose}>
+      {sharedNote && <Notice tone="good" icon="share-outline">{`Saved the page from ${sharedNote}. It's being read below with its link and photo. Tap "Check and add" when it's ready.`}</Notice>}
       <P style={{ color: C.muted, marginTop: 10 }}>Open a recipe website, find a recipe, copy its link, then come back here and save it. Open the site again and carry on from where you were. Saved recipes wait below until you check them.</P>
       <Notice tone="brand" icon="information-circle-outline">{inApp
         ? "Pages open in a simple window here: text, pictures and links, without ads, videos or scripts. Tap a link to move around the site, and Save recipe when you find one. If a site won't open, use \"Open in a new tab\"."
@@ -740,17 +804,25 @@ function BrowseSites({ onClose, query }: { onClose: () => void; query?: string }
                 accessibilityLabel="Search or website address" onSubmitEditing={submitBar} returnKeyType="go" style={[input, { flex: 1, minWidth: 0, paddingVertical: 8 }]} />
               {loading ? <ActivityIndicator color={C.brand} /> : <IconButton icon="arrow-forward" label="Go" onPress={submitBar} />}
             </Row>
+            {words !== '' && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.card }} contentContainerStyle={{ gap: 6, padding: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: C.muted }}>{`Search "${words.slice(0, 24)}" on:`}</Text>
+                {sites.map((x) => <Chip key={x.id} label={x.name} onPress={() => go(siteSearch(x.url, words))} />)}
+                <Chip icon="globe-outline" label="The web" onPress={() => go('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(words + ' recipe'))} />
+                <Chip icon="open-outline" label="Google (new tab)" onPress={() => open('https://www.google.com/search?q=' + encodeURIComponent(words + ' recipe'))} />
+              </ScrollView>
+            )}
             <View style={{ flex: 1, minHeight: 0 }}>
               {pageError && <View style={{ padding: 12 }}><Notice tone="warn" icon="alert-circle-outline">{pageError}</Notice>{tried !== '' && <View style={{ marginTop: 8, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Open in a new tab instead" onPress={() => open(tried)} /></View>}</View>}
               {!page && !pageError && !loading && (
                 <ScrollView contentContainerStyle={{ padding: 16 }}>
                   <Text style={{ fontWeight: '700', fontSize: 16 }}>Search for a recipe, or open one of your websites</Text>
-                  <Text style={{ color: C.muted, marginTop: 4 }}>Type what you want to cook in the bar above, for example "chicken rice". Results open here. Tap a result, then Save recipe.</Text>
+                  <Text style={{ color: C.muted, marginTop: 4 }}>Type what you want to cook in the bar above, for example "chicken rice". It searches your recipe websites, and you can switch to another site or the web. Tap a result, then Save recipe.</Text>
                   <Row style={{ gap: 6, marginTop: 12 }}>
                     {sites.map((x) => <Chip key={x.id} label={x.name} onPress={() => go(x.url)} />)}
                   </Row>
                   <View style={{ marginTop: 14, alignSelf: 'flex-start' }}><Button small kind="ghost" icon="open-outline" label="Search Google in a new tab" onPress={() => open('https://www.google.com/search?q=' + encodeURIComponent((q.trim() || 'easy dinner') + ' recipe'))} /></View>
-                  <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Google doesn't allow its results to be shown inside other apps, so the search here uses DuckDuckGo.</Text>
+                  <Text style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Google doesn't allow its results to be shown inside other apps. Web search (DuckDuckGo) may be refused, because search engines often block automated visits; your recipe websites' own search is the dependable way.</Text>
                 </ScrollView>
               )}
               {page && React.createElement('iframe', {

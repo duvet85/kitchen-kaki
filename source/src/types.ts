@@ -90,6 +90,8 @@ export interface Recipe {
   videoUrl?: string;
   /** how many the imported quantities serve, as the page states it */
   serves?: string;
+  /** the family's own notes, typed in when they added the recipe by hand */
+  notes?: string;
 }
 
 /** meal types shown on the recipe book's Meals tab */

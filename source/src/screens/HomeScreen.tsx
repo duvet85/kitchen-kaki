@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Platform, TextInput, View } from 'react-native';
 import { RECIPES, recipeById } from '../data/recipes';
 import { DAY_NAMES } from '../engine/planner';
 import { useApp } from '../state';
@@ -9,6 +9,8 @@ import { DishDetail } from './DishSheets';
 import { AddRecipeFlow, RecipeBookSheet } from './RecipeBook';
 import { useWebRecipes } from './WebRecipes';
 import RecipeTiles from './RecipeTiles';
+import ManualRecipe from './ManualRecipe';
+import ScanRecipe from './ScanRecipe';
 
 /** First page: today's dishes, then the whole recipe book as tiles of food photos. */
 export default function HomeScreen() {
@@ -17,8 +19,19 @@ export default function HomeScreen() {
   const [viewing, setViewing] = useState<Recipe | null>(null);
   const [book, setBook] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [adding, setAdding] = useState<'import' | 'search' | 'gemini' | 'browse' | null>(null);
   const web = useWebRecipes();
+  // a page sent here from the phone's Share button (an iPhone Shortcut or Android share opens ...?save=<link>)
+  const [sharing, setSharing] = useState<string | null>(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+    const p = new URLSearchParams(window.location.search);
+    const v = p.get('save') || p.get('url') || p.get('text');
+    if (!v) return null;
+    try { ['save', 'url', 'text', 'title'].forEach((k) => p.delete(k)); window.history.replaceState(null, '', window.location.pathname + (p.toString() ? `?${p}` : '') + window.location.hash); } catch { /* the address bar keeps the link: harmless */ }
+    return v;
+  });
   const term = q.trim().toLowerCase();
   const rows = RECIPES.filter((r) => !r.sickDay && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -60,6 +73,9 @@ export default function HomeScreen() {
         {addOpen && (
           <View style={{ marginTop: 8, gap: 8 }}>
             {web && <Button kind="ghost" icon="globe-outline" label="Browse a recipe website and save several" onPress={() => { setAddOpen(false); setAdding('browse'); }} />}
+            {web && <Button kind="ghost" icon="search" label="Search for a recipe" onPress={() => { setAddOpen(false); setAdding('search'); }} />}
+            <Button kind="ghost" icon="scan-outline" label="Scan a recipe from a photo or PDF" onPress={() => { setAddOpen(false); setScanning(true); }} />
+            <Button kind="ghost" icon="create-outline" label="Type in my own recipe and photo" onPress={() => { setAddOpen(false); setTyping(true); }} />
             <Button kind="ghost" icon="sparkles" label="Type a dish or paste a recipe (Gemini)" onPress={() => { setAddOpen(false); setAdding('gemini'); }} />
           </View>
         )}
@@ -68,6 +84,9 @@ export default function HomeScreen() {
 
       {viewing && <DishDetail recipe={viewing} onClose={() => setViewing(null)} />}
       {adding && <AddRecipeFlow start={adding} onClose={() => setAdding(null)} />}
+      {scanning && <ScanRecipe onClose={() => setScanning(false)} />}
+      {typing && <ManualRecipe onClose={() => setTyping(false)} />}
+      {sharing && <AddRecipeFlow start="browse" saveUrl={sharing} onClose={() => setSharing(null)} />}
       {book && <RecipeBookSheet onClose={() => setBook(false)} />}
     </Screen>
   );

@@ -116,6 +116,12 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
           ))}
         </View>
       )}
+      {r.notes ? (
+        <View style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: C.brandSoft }}>
+          <Text style={{ fontWeight: '700', marginBottom: 4 }}>Family notes</Text>
+          <Text style={{ lineHeight: 21 }}>{r.notes}</Text>
+        </View>
+      ) : null}
     </Sheet>
   );
 }
