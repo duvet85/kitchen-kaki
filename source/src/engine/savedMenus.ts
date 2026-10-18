@@ -1,7 +1,7 @@
 import { RECIPES } from '../data/recipes';
 import { AppState, PlannedDish, PlannedMeal, SavedMenu } from '../types';
 import { MEAL_LABEL } from './meals';
-import { DROP_BELOW, eligibleRecipes, exclusionReasons, isSoup, mealPool, mealsOn, mondayOf } from './planner';
+import { DROP_BELOW, eligibleRecipes, exclusionReasons, isSoup, mealPool, mealsOn, mondayOf, addDays } from './planner';
 
 export const MAX_SAVED = 20;
 const MAX_NAME = 30;
@@ -95,6 +95,10 @@ export function checkMenu(st: AppState, menu: SavedMenu): MenuCheck {
 export function applySavedMenu(st: AppState, menu: SavedMenu): AppState {
   const { dishes, meals } = checkMenu(st, menu);
   if (!dishes.length) return st;
+  // a week already sent stays with the cook: the saved menu becomes next week's draft
+  if (st.plan?.status === 'confirmed') {
+    return { ...st, nextPlan: { weekNo: st.plan.weekNo + 1, weekOf: addDays(st.plan.weekOf, 7), dishes, ...(meals.length ? { meals } : {}), status: 'draft', cooked: [] } };
+  }
   return {
     ...st,
     plan: { weekNo: st.plan?.weekNo ?? 1, weekOf: st.plan?.weekOf ?? mondayOf(), dishes, ...(meals.length ? { meals } : {}), status: 'draft', cooked: [] },

@@ -105,7 +105,7 @@ function MenuRow({ menu, open, onToggle, onUsed }: { menu: SavedMenu; open: bool
             : confirm === 'use'
               ? (
                 <View style={{ gap: 8 }}>
-                  <Notice tone="warn" icon="swap-horizontal">{sent ? `This week's menu was already sent to your ${cookL()}. Using this menu replaces it with a draft, and your ${cookL()} only sees it after you confirm again.` : "This replaces the draft you have for this week."} The shopping list is worked out again from the new menu.</Notice>
+                  <Notice tone="warn" icon="swap-horizontal">{sent ? `This week's menu was already sent, so this becomes next week's draft. Your ${cookL()} keeps this week's menu until you send it.` : "This replaces the draft you have for this week. The shopping list is worked out again from the new menu."}</Notice>
                   <Row style={{ gap: 8 }}>
                     <Button label="Yes, use it" icon="checkmark" onPress={() => { update((st) => applySavedMenu(st, menu)); onUsed(); }} />
                     <Button kind="ghost" label="No change" onPress={() => setConfirm(null)} />

@@ -1,6 +1,6 @@
 import { cook, cookL } from '../cook';
 import { DishHistory } from './LearnCook';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
 import { ballpark, dishCost, money, roughMoney, shoppingDone, shoppingProgress, weekCost } from '../engine/grocery';
@@ -9,7 +9,8 @@ import { healthFlags, mildTip } from '../engine/health';
 import {
   DAY_NAMES, FAVOURITE_FROM, MEAL_KINDS, addDays, buildWeekPlan, eligibleRecipes, isCooked, isSoup, mealsOn, lovedBy, menuProgress, missingFavourite, mondayOf, pickedSoupDays, vegGap, soupDaysFor, soupsPerWeek, spiceRule, spreadSoupDays,
 } from '../engine/planner';
-import { useApp } from '../state';
+import { StateLens, useApp } from '../state';
+import { draftNextWeek, draftView, fromDraftView, restartWeeks, takeBackWeek } from '../engine/weeks';
 import DishPhoto from '../DishPhoto';
 import { photoFor } from '../data/photos';
 import { AppState, PlannedDish, Recipe } from '../types';
@@ -32,8 +33,38 @@ import { newId } from '../state';
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 const langName = (l: string) => ({ en: 'English', tl: 'Tagalog', id: 'Bahasa Indonesia', my: 'Burmese', zh: 'Chinese' } as Record<string, string>)[l];
 
+/**
+ * The Menu tab. Once a week is sent the cook works from it while the owner drafts the next week beside it, so the owner can
+ * switch between the two; sending the draft replaces the sent week.
+ */
 export default function PlanScreen() {
+  const { state } = useApp();
+  const [view, setView] = useState<'sent' | 'next'>('next');
+  const hasNext = !!state.nextPlan;
+  useEffect(() => { if (hasNext) setView('next'); }, [hasNext]);
+  const both = !!state.plan && !!state.nextPlan;
+  const onNext = both && view === 'next';
+  const switcher = both ? (
+    <View style={{ flexDirection: 'row', marginTop: 4, marginBottom: 6, backgroundColor: '#F3E7D4', borderRadius: 14, padding: 4, maxWidth: 520 }}>
+      {([['sent', `Week ${state.plan!.weekNo} · sent`, 'checkmark-circle'], ['next', `Week ${state.nextPlan!.weekNo} · draft`, 'eye-off-outline']] as const).map(([k, label, icon]) => {
+        const on = (k === 'next') === onNext;
+        return (
+          <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setView(k)} style={{ flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, backgroundColor: on ? C.card : 'transparent' }}>
+            <Icon name={icon} size={16} color={on ? C.brand : C.muted} />
+            <Text style={{ fontWeight: '700', color: on ? C.brandDeep : C.muted }}>{label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  ) : null;
+  return onNext
+    ? <StateLens key="next" view={draftView} back={fromDraftView}><PlanBody switcher={switcher} draftOfNext sentWeek={state.plan!.weekNo} /></StateLens>
+    : <PlanBody key="sent" switcher={switcher} onOpenNext={() => setView('next')} />;
+}
+
+function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: React.ReactNode; draftOfNext?: boolean; sentWeek?: number; onOpenNext?: () => void }) {
   const { state, update } = useApp();
+  const [asking, setAsking] = useState<'takeBack' | 'restart' | 'discard' | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showExcluded, setShowExcluded] = useState(false);
@@ -62,13 +93,11 @@ export default function PlanScreen() {
       return { ...next, plan: buildWeekPlan(next, st.plan?.weekNo ?? 1, st.plan?.weekOf ?? mondayOf()), bought: [], shopSwaps: {}, fruitDays: [], lateItems: [], helperNotes: [] };
     });
 
-  const nextWeek = () =>
-    search((st) => {
-      if (!st.plan) return st;
-      const done = st.plan.dishes.map((d) => d.recipeId);
-      const next: AppState = { ...st, history: [...new Set([...st.history, ...done])], lastWeek: done, refreshCount: st.refreshCount + 1 };
-      return { ...next, plan: buildWeekPlan(next, st.plan.weekNo + 1, addDays(st.plan.weekOf, 7)), bought: [], shopSwaps: {}, fruitDays: [], lateItems: [], helperNotes: [] };
-    });
+  const nextWeek = () => {
+    if (state.nextPlan) { onOpenNext?.(); return; }
+    search(draftNextWeek);
+    onOpenNext?.();
+  };
 
   // Adding or swapping opens a list to choose from (the owner decides; nothing changes by itself).
   const [picker, setPicker] = useState<{ day: number; course: 'dish' | 'soup'; replace?: PlannedDish } | null>(null);
@@ -95,6 +124,8 @@ export default function PlanScreen() {
 
   return (
     <Screen eyebrow="Step 3" title="Weekly menu" subtitle={`We suggest the week's dishes. You check them, then your ${cookL()} gets the recipes and one shopping list.`}>
+      {switcher}
+      {draftOfNext && <Notice tone="brand" icon="eye-off-outline">Your {cookL()} still sees week {sentWeek} until you send this one. Sending it starts a fresh shopping list.</Notice>}
       <Grid cols={isTablet ? 2 : 1}>
       {plan && !searching && (
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
@@ -289,6 +320,7 @@ export default function PlanScreen() {
                 <P style={{ color: C.muted }}>Only you can see it for now. Once you confirm, your {cookL()} gets the recipes in {langName(settings.helperLang)} and one shopping list for the week.</P>
                 <Button icon="paper-plane" label={`Confirm and send to ${cookL()}`} onPress={confirm} />
                 <Button kind="quiet" icon="shuffle" label="Suggest a different set" onPress={findRecipes} />
+                {draftOfNext && <Button kind="quiet" icon="trash-outline" label={`Throw away the week ${plan.weekNo} draft`} onPress={() => setAsking('discard')} />}
               </View>
             ) : (
               <View style={{ gap: 10 }}>
@@ -301,14 +333,49 @@ export default function PlanScreen() {
                 <P style={{ color: C.muted }}>{new Date(plan.confirmedAt!).toLocaleString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. See what they see on the {cook()} tab.</P>
                 <Notice tone="brand" icon="create-outline">Plans change, so you can still swap, add or remove a dish that isn't cooked yet. Your {cookL()} is told, and anything new to buy is marked NEW on their list.</Notice>
                 {unrated > 0 && <Notice tone="warn" icon="kaki-pot-off">{unrated} dishes still to rate. Ratings decide what comes back next week.</Notice>}
-                <Button icon="arrow-forward" label={`Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
+                <Button icon="arrow-forward" label={state.nextPlan ? `Open the week ${state.nextPlan.weekNo} draft` : `Plan week ${plan.weekNo + 1}`} onPress={nextWeek} />
+                <Button kind="quiet" icon="arrow-undo-outline" label="Take back this menu" onPress={() => setAsking('takeBack')} />
               </View>
             )}
           </Card>
+          {asking && (
+            <ResetAsk kind={asking} state={state} onCancel={() => setAsking(null)}
+              onYes={() => { const k = asking; setAsking(null); update(k === 'takeBack' ? takeBackWeek : k === 'restart' ? restartWeeks : (st) => ({ ...st, plan: null })); }} />
+          )}
+          {!asking && !draftOfNext && (state.history.length > 0 || plan.weekNo > 1 || plan.status === 'confirmed') && (
+            <Pressable accessibilityRole="button" onPress={() => setAsking('restart')} style={{ marginTop: 14, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}>
+              <Icon name="refresh" size={15} color={C.muted} />
+              <Text style={{ color: C.muted, fontWeight: '700', textDecorationLine: 'underline' }}>Start again from week 1</Text>
+            </Pressable>
+          )}
         </>
       )}
       {mover.bar}
     </Screen>
+  );
+}
+
+/** The confirm step for taking back a menu, throwing away a draft or starting again: says exactly what changes and what stays. */
+function ResetAsk({ kind, state, onYes, onCancel }: { kind: 'takeBack' | 'restart' | 'discard'; state: AppState; onYes: () => void; onCancel: () => void }) {
+  const plan = state.plan!;
+  const prev = state.pastWeeks?.[state.pastWeeks.length - 1];
+  const cooked = plan.cooked.length;
+  const text = kind === 'discard'
+    ? { title: `Throw away the week ${plan.weekNo} draft?`, body: [`Your ${cookL()} never saw it. Week ${plan.weekNo - 1} stays as it is.`], yes: 'Throw it away' }
+    : kind === 'takeBack'
+      ? prev
+        ? { title: `Take back week ${plan.weekNo}?`, body: [`Your ${cookL()} goes back to the week ${prev.plan.weekNo} menu and its shopping list, as they were.`, `The week ${plan.weekNo} menu becomes a draft again, so you can change it and send it later.`, ...(cooked ? [`${cooked} dish${cooked === 1 ? ' was' : 'es were'} already marked cooked this week.`] : [])], yes: `Go back to week ${prev.plan.weekNo}` }
+        : { title: `Take back week ${plan.weekNo}?`, body: [`Your ${cookL()} won't see this menu any more. It becomes a draft again, so you can change it and send it later.`, `Notes about changes to this menu are cleared.`], yes: 'Take it back' }
+      : { title: 'Start again from week 1?', body: [`This clears every menu (week ${plan.weekNo}${state.nextPlan ? ` and the week ${state.nextPlan.weekNo} draft` : ''}), the shopping list, cooking progress and timers, on your ${cookL()}'s phone too.`, 'New dishes are brought in slowly again, as in week 1.', 'Your family, ratings, recipes, photos, settings and the Kitchen tab are kept.'], yes: 'Start again from week 1' };
+  return (
+    <Card style={{ marginTop: 14, borderWidth: 1.5, borderColor: C.amber, maxWidth: 560 }}>
+      <H2>{text.title}</H2>
+      {text.body.map((b) => <P key={b} style={{ color: C.muted, marginTop: 4 }}>{b}</P>)}
+      <View style={{ gap: 8, marginTop: 12 }}>
+        <Button icon={kind === 'restart' ? 'refresh' : kind === 'discard' ? 'trash-outline' : 'arrow-undo-outline'} label={text.yes} onPress={onYes} />
+        <Button kind="quiet" label="Cancel" onPress={onCancel} />
+      </View>
+    </Card>
   );
 }
 

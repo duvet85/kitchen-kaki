@@ -1,6 +1,7 @@
 import { setCookLabel } from './cook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { AppState as AppStateRN } from 'react-native';
 import { DEMO_STATE } from './data/demo';
 import { applyCustomRecipes } from './data/recipes';
 import { FamilyConfig, client, loadConfig, signedIn, stableJson } from './sync/family';
@@ -32,6 +33,18 @@ function keepLocalRecipes(local: AppState, server: AppState): AppState {
 }
 
 /**
+ * Two phones changed the family copy: keep what this phone changed since it last saw the family's copy (by top-level part,
+ * e.g. the cook's ticked shopping) and take everything else from the newer family copy (e.g. the menu the owner just sent).
+ */
+export function mergeChanges(mine: AppState, was: AppState | null, theirs: AppState): AppState {
+  if (!was) return theirs;
+  const out: Record<string, unknown> = { ...theirs };
+  const m = mine as unknown as Record<string, unknown>, w = was as unknown as Record<string, unknown>;
+  for (const k of Object.keys(m)) if (stableJson(m[k]) !== stableJson(w[k])) out[k] = m[k];
+  return out as unknown as AppState;
+}
+
+/**
  * Single app-wide store. Always saved on the phone; when the phone has joined a family,
  * also kept in step with everyone else's phones through Supabase (last change wins).
  */
@@ -45,8 +58,12 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   const serverJson = useRef<string | null>(null);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const me = useRef<string | null>(null);
+  /** the family copy as we last saw it (the base for merging) and its updated_at stamp */
+  const base = useRef<AppState | null>(null);
+  const stamp = useRef<string | null>(null);
   /** true once this phone has loaded the family's copy, so it never overwrites it with stale local data */
   const ready = useRef(false);
+  const pullRef = useRef<(() => Promise<boolean>) | null>(null);
 
   useEffect(() => {
     Promise.all([AsyncStorage.getItem(KEY).catch(() => null), loadConfig().catch(() => null)])
@@ -65,20 +82,30 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     const sb = client(family.url, family.key);
     setSync('connecting');
 
-    const pull = async (first: boolean) => {
-      const { data, error } = await sb.from('households').select('state, updated_by').eq('id', family.householdId).maybeSingle();
-      if (gone) return;
-      if (error || !data) { setSync('offline'); return; }
+    /** true when the family copy had changed */
+    const pull = async (first: boolean): Promise<boolean> => {
+      if (!first && stamp.current) {
+        // a cheap look first: only download the whole copy when someone saved since
+        const { data: s } = await sb.from('households').select('updated_at').eq('id', family.householdId).maybeSingle();
+        if (gone || (s && s.updated_at === stamp.current)) return false;
+      }
+      const { data, error } = await sb.from('households').select('state, updated_by, updated_at').eq('id', family.householdId).maybeSingle();
+      if (gone) return false;
+      if (error || !data) { setSync('offline'); return false; }
+      if (!first && data.updated_at === stamp.current) return false; // nothing new
+      stamp.current = data.updated_at ?? null;
       if (data.state) {
-        const json = stableJson(data.state);
-        if (first || data.updated_by !== me.current) {
-          serverJson.current = json;
-          setState((prev) => (first ? keepLocalRecipes(prev, withDefaults(data.state)) : mergeKitchenLog(prev, withDefaults(data.state))));
-        }
+        const server = withDefaults(data.state);
+        const was = base.current;
+        serverJson.current = stableJson(data.state);
+        base.current = server;
+        setState((prev) => (first ? keepLocalRecipes(prev, server) : mergeKitchenLog(prev, mergeChanges(prev, was, server))));
       } else {
         serverJson.current = null; // brand-new family: our next save fills it
       }
+      return true;
     };
+    pullRef.current = () => pull(false);
 
     let channel: ReturnType<typeof sb.channel> | null = null;
     (async () => {
@@ -91,12 +118,9 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
         channel = sb
           .channel(`household-${family.householdId}`)
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'households', filter: `id=eq.${family.householdId}` }, (p) => {
-            const row = p.new as { state: AppState | null; updated_by: string | null };
-            if (!row.state || row.updated_by === me.current) return; // our own save coming back
-            const json = stableJson(row.state);
-            if (json === serverJson.current) return;
-            serverJson.current = json;
-            setState((prev) => mergeKitchenLog(prev, withDefaults(row.state!)));
+            const row = p.new as { updated_at?: string };
+            // Read the row again rather than trusting the message: Supabase leaves big values out of it.
+            if (row.updated_at !== stamp.current) void pull(false);
           })
           .subscribe((status) => {
             if (gone) return;
@@ -107,8 +131,20 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
         if (!gone) setSync('offline');
       }
     })();
+    // A phone that was asleep, or a Safari tab in the background, misses live updates: look again when the app is back on screen,
+    // and every 30 seconds while it is open.
+    const onShow = () => { if (ready.current && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void pull(false); };
+    const tick = setInterval(onShow, 30000);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('focus', onShow); window.addEventListener('online', onShow); document.addEventListener('visibilitychange', onShow);
+    }
+    const appSub = AppStateRN.addEventListener('change', (s) => { if (s === 'active') onShow(); });
     return () => {
       gone = true;
+      clearInterval(tick); appSub.remove();
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('focus', onShow); window.removeEventListener('online', onShow); document.removeEventListener('visibilitychange', onShow);
+      }
       if (channel) sb.removeChannel(channel);
     };
   }, [family]);
@@ -122,17 +158,39 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     if (pushTimer.current) clearTimeout(pushTimer.current);
     pushTimer.current = setTimeout(async () => {
       const sb = client(family.url, family.key);
-      const { error } = await sb.from('households')
-        .update({ state: JSON.parse(json), updated_at: new Date().toISOString(), updated_by: me.current })
-        .eq('id', family.householdId);
-      if (!error) serverJson.current = json;
-      setSync(error ? 'offline' : 'live');
+      const at = new Date().toISOString();
+      // Only save over the copy this phone last saw. If another phone saved in between (the owner sent a menu while the cook's
+      // app was open), fetch theirs and merge first, so an old copy never wipes out a newer one.
+      let q = sb.from('households').update({ state: JSON.parse(json), updated_at: at, updated_by: me.current }).eq('id', family.householdId);
+      if (stamp.current) q = q.eq('updated_at', stamp.current);
+      const { data, error } = await q.select('updated_at');
+      if (error) { setSync('offline'); return; }
+      if (!data?.length) {
+        // someone else saved first: merging their copy changes the state, which saves again
+        const changed = await pullRef.current?.();
+        if (!changed) setSync('offline');
+        return;
+      }
+      serverJson.current = json;
+      stamp.current = (data[0] as { updated_at?: string }).updated_at ?? at;
+      base.current = JSON.parse(json);
+      setSync('live');
     }, 600);
   }, [state, family, sync]);
 
   applyCustomRecipes(state.customRecipes, state.customItems);
   return (
     <Ctx.Provider value={{ state, update: (fn) => setState(fn), reset: () => setState(DEMO_STATE), family, setFamily, sync }}>
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+/** Shows the screens inside it a different view of the state (`view`), and folds their changes back in (`back`). */
+export function StateLens({ view, back, children }: { view: (s: AppState) => AppState; back: (s: AppState, v: AppState) => AppState; children: React.ReactNode }) {
+  const outer = useApp();
+  return (
+    <Ctx.Provider value={{ ...outer, state: view(outer.state), update: (fn) => outer.update((s) => back(s, fn(view(s)))) }}>
       {children}
     </Ctx.Provider>
   );

@@ -222,6 +222,23 @@ export interface AppState {
   learning?: Learning;
   /** Kitchen tab: recognition settings */
   recognition?: { on: boolean; helper: string; hidePoints?: boolean; seen?: string[] };
+  /** next week's menu while the owner drafts it; the cook keeps working from `plan` (the sent week) until this one is sent */
+  nextPlan?: WeekPlan | null;
+  /** the weeks before the current one, as they were when the next week was sent, newest last, so a sent week can be taken back */
+  pastWeeks?: WeekSnapshot[];
+}
+
+/** Everything that belongs to one sent week (the menu and its shopping), kept so the owner can go back to it. */
+export interface WeekSnapshot {
+  plan: WeekPlan;
+  history: string[];
+  lastWeek: string[];
+  bought: string[];
+  shopSwaps?: Record<string, ShopSwap>;
+  shopNames?: Record<string, string>;
+  fruitDays?: number[];
+  lateItems?: string[];
+  helperNotes: HelperNote[];
 }
 
 /** How a dish is mainly cooked; a lesson teaches one soup, one steamed or braised dish and one stir-fry. */
