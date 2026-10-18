@@ -19,7 +19,8 @@ import {
 } from '../ui';
 import { cap } from './FamilyScreen';
 import { DishDetail, DishPicker } from './DishSheets';
-import { placeDish, removeDish } from '../engine/balance';
+import { moveDish, placeDish, removeDish } from '../engine/balance';
+import { useDragMove } from './DragMove';
 import { useTripGate } from './TripConfirm';
 import { SavedMenusCard } from './SavedMenus';
 import { mealOn } from '../engine/meals';
@@ -77,6 +78,13 @@ export default function PlanScreen() {
   const add = (day: number, course: 'dish' | 'soup') => setPicker({ day, course });
 
   const remove = (target: PlannedDish) => update((st) => removeDish(st, target, newId));
+  const mover = useDragMove<PlannedDish>(
+    Array.from({ length: settings.daysPerWeek }, (_, day) => ({
+      day, label: DAY_NAMES[day].slice(0, 3), sub: plan ? fmtDate(addDays(plan.weekOf, day)) : '',
+      blocked: (d: PlannedDish) => d.day === day || !!plan?.dishes.some((x) => x.day === day && x.recipeId === d.recipeId),
+    })),
+    (d, day) => update((st) => moveDish(st, st.plan?.dishes.find((x) => x.day === d.day && x.recipeId === d.recipeId) ?? d, day, newId)),
+  );
 
   const confirm = () => update((st) => ({ ...st, plan: st.plan && { ...st.plan, status: 'confirmed', confirmedAt: new Date().toISOString() } }));
   const setSettings = (patch: Partial<typeof settings>) => update((st) => ({ ...st, settings: { ...st.settings, ...patch } }));
@@ -253,7 +261,8 @@ export default function PlanScreen() {
                 {dishes.map((d) => (
                   <DishCard key={`${d.day}-${d.recipeId}`} recipe={recipeById(d.recipeId)} dish={d} weekIds={ids} spiceCap={spice.cap} onOpen={() => setDetail(recipeById(d.recipeId))}
                     onSwap={plan.status === 'draft' || !isCooked(plan, d) ? () => swap(d) : undefined}
-                    onRemove={(plan.status === 'draft' ? dishes.length > 1 : !isCooked(plan, d)) ? () => remove(d) : undefined} />
+                    onRemove={(plan.status === 'draft' ? dishes.length > 1 : !isCooked(plan, d)) ? () => remove(d) : undefined}
+                    handle={plan.status === 'draft' || !isCooked(plan, d) ? mover.handle(d, recipeById(d.recipeId).name) : undefined} />
                 ))}
                 {!dishes.length && <Text style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>No dishes planned for this day.</Text>}
                 <Row style={{ marginTop: 8, gap: 8 }}>
@@ -298,6 +307,7 @@ export default function PlanScreen() {
           </Card>
         </>
       )}
+      {mover.bar}
     </Screen>
   );
 }
@@ -382,7 +392,7 @@ function FamilyMenuCard({ progress: p, newPerDay, plan }: { progress: ReturnType
   );
 }
 
-function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen }: { recipe: Recipe; dish: PlannedDish; weekIds: string[]; spiceCap: number; onSwap?: () => void; onRemove?: () => void; onOpen: () => void }) {
+function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen, handle }: { recipe: Recipe; dish: PlannedDish; weekIds: string[]; spiceCap: number; onSwap?: () => void; onRemove?: () => void; onOpen: () => void; handle?: React.ReactNode }) {
   const { state } = useApp();
   const rating = state.ratings[r.id];
   const hasPhoto = !!(photoFor(r.id) || r.imageUrl || state.userPhotos?.[r.id]);
@@ -416,6 +426,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
           </Row>
         </View>
         <View style={{ gap: 6 }}>
+          {handle}
           {onSwap && <IconButton icon="swap-horizontal" label={`Swap ${r.name}`} onPress={onSwap} />}
           {onRemove && <IconButton icon="close" label={`Remove ${r.name}`} onPress={onRemove} />}
         </View>

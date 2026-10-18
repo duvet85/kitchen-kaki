@@ -188,6 +188,13 @@ function Recipes({ lang }: { lang: Lang }) {
 function Shopping({ lang }: { lang: Lang }) {
   const { state, update, family } = useApp();
   const [picking, setPicking] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ item: string; text: string } | null>(null);
+  const names = state.shopNames ?? {};
+  const rename = (item: string, text: string) => {
+    const v = text.trim().slice(0, 60);
+    update((st) => { const { [item]: _, ...rest } = st.shopNames ?? {}; return { ...st, shopNames: v ? { ...rest, [item]: v } : rest }; });
+    setRenaming(null);
+  };
   const swaps = state.shopSwaps ?? {};
   const plan = state.plan!;
   const itemTr = itemNames(lang, state, planRecipeIds(plan).map((id) => recipeById(id)));
@@ -221,16 +228,33 @@ function Shopping({ lang }: { lang: Lang }) {
     const done = state.bought.includes(l.item) || skipped;
     const showPicker = picking === l.item && !swap && !state.bought.includes(l.item);
     return (
-      <Pressable key={l.item} onPress={() => !skipped && toggle(l.item)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
+      <Pressable key={l.item} onPress={() => !skipped && renaming?.item !== l.item && toggle(l.item)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
         <Row style={{ flexWrap: 'nowrap', alignItems: 'flex-start', gap: 10 }}>
           <Icon name={skipped ? 'remove-circle-outline' : done ? 'checkbox' : 'square-outline'} size={22} color={skipped ? C.faint : done ? C.brand : C.faint} />
           <View style={{ flex: 1 }}>
             <Row style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
-              <Text style={{ flex: 1, fontWeight: '700', color: done || swap ? C.faint : C.ink, textDecorationLine: done || swap ? 'line-through' : 'none' }}>{itemTr[l.item] ?? l.info.name}</Text>
+              {renaming?.item === l.item ? (
+                <View style={{ flex: 1, gap: 6 }}>
+                  <TextInput value={renaming.text} onChangeText={(text) => setRenaming({ item: l.item, text })} autoFocus maxLength={60} onSubmitEditing={() => rename(l.item, renaming.text)} returnKeyType="done"
+                    accessibilityLabel={`New name for ${l.info.name}`} style={{ borderWidth: 1, borderColor: C.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, fontSize: 15, color: C.ink, backgroundColor: '#fff' }} />
+                  <Row style={{ gap: 6 }}>
+                    <Chip tone="good" icon="checkmark" label="Save" onPress={() => rename(l.item, renaming.text)} />
+                    {names[l.item] && <Chip icon="refresh" label={`Back to "${l.info.name}"`} onPress={() => rename(l.item, '')} />}
+                    <Chip label="Cancel" onPress={() => setRenaming(null)} />
+                  </Row>
+                </View>
+              ) : (
+                <Row style={{ flex: 1, flexWrap: 'nowrap', gap: 4, alignItems: 'flex-start' }}>
+                  <Text style={{ flexShrink: 1, fontWeight: '700', color: done || swap ? C.faint : C.ink, textDecorationLine: done || swap ? 'line-through' : 'none' }}>{names[l.item] ?? itemTr[l.item] ?? l.info.name}</Text>
+                  <Pressable onPress={() => setRenaming({ item: l.item, text: names[l.item] ?? itemTr[l.item] ?? l.info.name })} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Change the name of ${names[l.item] ?? l.info.name}`} style={{ paddingHorizontal: 4, paddingTop: 2 }}>
+                    <Icon name="create-outline" size={16} color={C.muted} />
+                  </Pressable>
+                </Row>
+              )}
               {(state.lateItems ?? []).includes(l.item) && !done && <View style={{ marginRight: 8 }}><Chip tone="new" icon="sparkles" label={t('newItem', lang)} /></View>}
               <Text style={{ fontWeight: '600', color: done ? C.faint : C.ink }}>{roughMoney(l.info.price)}</Text>
             </Row>
-            <Text style={{ color: C.muted, fontSize: 12, marginTop: 1 }}>{qtyLabel(l.info.pack, lang)} · {l.uses.map((u) => dishTr[u.dish] ?? u.dish).join(', ')}</Text>
+            <Text style={{ color: C.muted, fontSize: 12, marginTop: 1 }}>{names[l.item] ? `(was ${itemTr[l.item] ?? l.info.name}) · ` : ''}{qtyLabel(l.info.pack, lang)} · {l.uses.map((u) => dishTr[u.dish] ?? u.dish).join(', ')}</Text>
             {swap && (
               <Row style={{ marginTop: 6, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
                 <Text style={{ flex: 1, color: swap.to ? C.amber : C.muted, fontSize: 13, fontWeight: '700' }}>

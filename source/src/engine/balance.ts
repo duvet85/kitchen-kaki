@@ -150,3 +150,29 @@ export function removeDish(st: AppState, target: PlannedDish, newId: () => strin
     helperNotes: [{ id: newId(), at: new Date().toISOString(), changes: [{ day: target.day, from: target.recipeId, to: target.recipeId, kind: 'remove' as const }] }, ...(st.helperNotes ?? [])].slice(0, 5),
   };
 }
+
+/**
+ * Moves a dish to another day (drag and drop on the menu). Same dish, so the shopping list doesn't change.
+ * On a menu already sent the cook is told: cancelled on the old day, added on the new one. Cooking progress moves with it.
+ */
+export function moveDish(st: AppState, target: PlannedDish, day: number, newId: () => string): AppState {
+  if (!st.plan || target.day === day) return st;
+  if (st.plan.dishes.some((d) => d.day === day && d.recipeId === target.recipeId)) return st;
+  const moved: PlannedDish = { ...target, day };
+  const dishes = st.plan.dishes.map((d) => (d === target ? moved : d))
+    .sort((a, b) => a.day - b.day || Number(isSoup(recipeById(a.recipeId))) - Number(isSoup(recipeById(b.recipeId))));
+  const plan = { ...st.plan, dishes };
+  if (st.plan.status === 'draft') return { ...st, plan };
+  const from = dishKey(target), to = dishKey(moved);
+  const { [from]: progress, ...cooking } = st.cooking;
+  return {
+    ...st,
+    plan,
+    cooking: progress ? { ...cooking, [to]: progress } : cooking,
+    timers: st.timers.map((x) => (x.recipeId === from ? { ...x, recipeId: to } : x)),
+    helperNotes: [{ id: newId(), at: new Date().toISOString(), changes: [
+      { day: target.day, from: target.recipeId, to: target.recipeId, kind: 'remove' as const },
+      { day, from: target.recipeId, to: target.recipeId, kind: 'add' as const },
+    ] }, ...(st.helperNotes ?? [])].slice(0, 5),
+  };
+}

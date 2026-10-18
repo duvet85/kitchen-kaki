@@ -181,6 +181,8 @@ export interface AppState {
   helperNotes: HelperNote[];
   /** items not in the shop: catalogue key -> what was bought instead (null = skipped) */
   shopSwaps?: Record<string, ShopSwap>;
+  /** shopping list names the family typed over the app's own ("Whole seabass" for "Seabass fillet"), by shop item key; synced so the cook sees them */
+  shopNames?: Record<string, string>;
   /** days of this week's menu that fruit was served (tracked apart from the diet score) */
   fruitDays?: number[];
   /** shop items needed because the menu changed after it was sent (catalogue keys); shown as NEW to the helper until bought */
