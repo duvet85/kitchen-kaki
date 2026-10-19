@@ -18,7 +18,12 @@ export function mealFor(r: Recipe, state: Pick<AppState, 'mealOf'>): Meal | unde
 }
 
 /** The recipe book group of a dish: the family's own choice first, else the recipe's main ingredient. */
-export const typeFor = (r: Recipe, state: Pick<AppState, 'typeOf'>): Protein => state.typeOf?.[r.id] ?? r.protein;
+/** the groups a dish shows under: the family's choice (one or several), else its own main ingredient */
+export function typesFor(r: Recipe, state: Pick<AppState, 'typeOf'>): Protein[] {
+  const t = state.typeOf?.[r.id];
+  return t == null ? [r.protein] : Array.isArray(t) ? (t.length ? t : [r.protein]) : [t];
+}
+const isType = (r: Recipe, state: Pick<AppState, 'typeOf'>, p: Protein) => typesFor(r, state).includes(p);
 export const TYPES: { id: Protein; title: string; emoji: string }[] = [
   { id: 'chicken', title: 'Chicken', emoji: '🍗' }, { id: 'pork', title: 'Pork', emoji: '🥓' }, { id: 'beef', title: 'Beef', emoji: '🥩' },
   { id: 'fish', title: 'Fish', emoji: '🐟' }, { id: 'seafood', title: 'Seafood', emoji: '🦐' }, { id: 'egg', title: 'Eggs', emoji: '🥚' },
@@ -40,13 +45,13 @@ export function groupsFor(tab: Tab, recipes: Recipe[], state: AppState): Group[]
       mk('soups', 'Soups', '🍜', by((r) => r.course === 'soup' && !mealFor(r, state))),
       mk('breakfast', 'Breakfast', '🍳', by((r) => mealFor(r, state) === 'breakfast')),
       mk('lunch', 'Lunch', '🍱', by((r) => mealFor(r, state) === 'lunch')),
-      mk('chicken', 'Chicken', '🍗', by((r) => dish(r) && typeFor(r, state) === 'chicken')),
-      mk('pork', 'Pork', '🥓', by((r) => dish(r) && typeFor(r, state) === 'pork')),
-      mk('beef', 'Beef', '🥩', by((r) => dish(r) && (typeFor(r, state) === 'beef' || (!state.typeOf?.[r.id] && r.beef && r.protein === 'veg')))),
-      mk('fish', 'Fish', '🐟', by((r) => dish(r) && typeFor(r, state) === 'fish')),
-      mk('seafood', 'Seafood', '🦐', by((r) => dish(r) && typeFor(r, state) === 'seafood')),
-      mk('eggtofu', 'Eggs & tofu', '🥚', by((r) => dish(r) && (typeFor(r, state) === 'egg' || typeFor(r, state) === 'tofu'))),
-      mk('veg', 'Vegetables', '🥦', by((r) => dish(r) && typeFor(r, state) === 'veg' && (!!state.typeOf?.[r.id] || (!r.beef && !r.pork)))),
+      mk('chicken', 'Chicken', '🍗', by((r) => dish(r) && isType(r, state, 'chicken'))),
+      mk('pork', 'Pork', '🥓', by((r) => dish(r) && isType(r, state, 'pork'))),
+      mk('beef', 'Beef', '🥩', by((r) => dish(r) && (isType(r, state, 'beef') || (!state.typeOf?.[r.id] && r.beef && r.protein === 'veg')))),
+      mk('fish', 'Fish', '🐟', by((r) => dish(r) && isType(r, state, 'fish'))),
+      mk('seafood', 'Seafood', '🦐', by((r) => dish(r) && isType(r, state, 'seafood'))),
+      mk('eggtofu', 'Eggs & tofu', '🥚', by((r) => dish(r) && (isType(r, state, 'egg') || isType(r, state, 'tofu')))),
+      mk('veg', 'Vegetables', '🥦', by((r) => dish(r) && isType(r, state, 'veg') && (!!state.typeOf?.[r.id] || (!r.beef && !r.pork)))),
     ];
   } else if (tab === 'Meals') {
     // always shown, even when empty, so the family can see where to put things

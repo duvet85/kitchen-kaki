@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { MEALS, TYPES, mealFor, typeFor } from '../data/categories';
+import { MEALS, TYPES, mealFor, typesFor } from '../data/categories';
 import { useApp } from '../state';
-import { Collection, Recipe } from '../types';
+import { Collection, Protein, Recipe } from '../types';
 import { Button, C, Chip, F, Label, Row, Text } from '../ui';
 import { Sheet } from './FamilyScreen';
 
@@ -38,6 +38,16 @@ export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose:
   const [making, setMaking] = useState(false);
   const meal = mealFor(r, state);
   const cols = state.collections ?? [];
+  const types = typesFor(r, state);
+  // several groups can be ticked; the last one can't be unticked, and the recipe's own group alone means no override
+  const toggleType = (p: Protein) => update((st) => {
+    const cur = typesFor(r, st);
+    const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
+    if (!next.length) return st;
+    const o = { ...(st.typeOf ?? {}) };
+    if (next.length === 1 && next[0] === r.protein) delete o[r.id]; else o[r.id] = next;
+    return { ...st, typeOf: o };
+  });
   const setMeal = (m: typeof meal) => update((st) => ({ ...st, mealOf: { ...(st.mealOf ?? {}), [r.id]: m ?? 'none' } }));
   const toggle = (c: Collection) => update((st) => ({
     ...st, collections: (st.collections ?? []).map((x) => x.id !== c.id ? x : { ...x, ids: x.ids.includes(r.id) ? x.ids.filter((i) => i !== r.id) : [...x.ids, r.id] }),
@@ -47,10 +57,9 @@ export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose:
       <Text style={{ color: C.muted, marginTop: 4, lineHeight: 20 }}>{r.name}</Text>
       <Label>Shows under</Label>
       <Row>
-        {TYPES.map((t) => <Chip key={t.id} label={`${t.emoji} ${t.title}`} selected={typeFor(r, state) === t.id}
-          onPress={() => update((st) => { const o = { ...(st.typeOf ?? {}) }; if (t.id === r.protein) delete o[r.id]; else o[r.id] = t.id; return { ...st, typeOf: o }; })} />)}
+        {TYPES.map((t) => <Chip key={t.id} label={`${t.emoji} ${t.title}`} selected={types.includes(t.id)} onPress={() => toggleType(t.id)} />)}
       </Row>
-      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 17 }}>Which group the dish shows under in the recipe book (Types tab). Soups stay under Soups.</Text>
+      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 17 }}>Tap as many as fit: the dish shows under each one in the recipe book (Types tab). Soups stay under Soups.</Text>
       <Label>Meal type</Label>
       <Row>
         <Chip label="Dinner dish" selected={!meal} onPress={() => setMeal(undefined)} />
