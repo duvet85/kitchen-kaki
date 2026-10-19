@@ -132,11 +132,11 @@ export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { 
       {making && <NewCategory onClose={() => setMaking(false)} onDone={() => setMaking(false)} />}
       {live && (
         <Sheet title={`${live.title} (${live.recipes.length})`} onClose={() => setOpen(null)}>
+          {tab === 'Mine' && live.id !== '+' && <CollectionTools id={live.id} onGone={() => setOpen(null)} />}
           {live.recipes.length === 0 && <Text style={{ color: C.muted, marginTop: 12, lineHeight: 20 }}>Nothing here yet. Open any dish and tap Categories to put it here.</Text>}
           <TileGrid>
             {(size) => live.recipes.map((r) => <Tile key={r.id} recipe={r} size={size} label={r.name} heart={favs.has(r.id)} a11y={`Open ${r.name}`} onPress={() => onOpen(r)} />)}
           </TileGrid>
-          {tab === 'Mine' && live.id !== '+' && <CollectionTools id={live.id} onGone={() => setOpen(null)} />}
         </Sheet>
       )}
     </View>

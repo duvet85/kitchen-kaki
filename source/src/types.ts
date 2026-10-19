@@ -2,6 +2,8 @@ export type Lang = 'en' | 'tl' | 'id' | 'my' | 'zh';
 
 export type Cuisine = 'chinese' | 'malay' | 'indian' | 'peranakan' | 'western' | 'japanese' | 'korean' | 'thai';
 export type Protein = 'chicken' | 'pork' | 'beef' | 'fish' | 'seafood' | 'egg' | 'tofu' | 'veg';
+/** a recipe book group under Types: a main ingredient, or Mushroom (which the planner doesn't use) */
+export type BookType = Protein | 'mushroom';
 export type Flavour = 'savoury' | 'sweet' | 'sour' | 'spicy' | 'herby';
 export type Allergen = 'peanut' | 'shellfish' | 'fish' | 'egg' | 'dairy' | 'gluten' | 'soy' | 'treenut';
 export type Condition = 'diabetes' | 'hypertension' | 'cholesterol' | 'gout';
@@ -229,7 +231,7 @@ export interface AppState {
   /** app recipes the family deleted: gone from the recipe book and never planned (their own recipes are removed outright) */
   hiddenRecipes?: string[];
   /** the recipe book groups the family chose for a dish (Chicken, Pork, Vegetables…), over the recipe's own main ingredient; older saves hold a single group */
-  typeOf?: Record<string, Protein | Protein[]>;
+  typeOf?: Record<string, BookType | BookType[]>;
   /** the weeks before the current one, as they were when the next week was sent, newest last, so a sent week can be taken back */
   pastWeeks?: WeekSnapshot[];
 }

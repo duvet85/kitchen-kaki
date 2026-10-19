@@ -1,4 +1,4 @@
-import { AppState, Meal, Protein, Recipe } from '../types';
+import { AppState, BookType, Meal, Recipe } from '../types';
 
 export interface Group { id: string; title: string; emoji: string; recipes: Recipe[] }
 export const TABS = ['Types', 'Meals', 'Mine', 'Cuisines', 'Favourites', 'Recent'] as const;
@@ -18,16 +18,24 @@ export function mealFor(r: Recipe, state: Pick<AppState, 'mealOf'>): Meal | unde
 }
 
 /** The recipe book group of a dish: the family's own choice first, else the recipe's main ingredient. */
-/** the groups a dish shows under: the family's choice (one or several), else its own main ingredient */
-export function typesFor(r: Recipe, state: Pick<AppState, 'typeOf'>): Protein[] {
-  const t = state.typeOf?.[r.id];
-  return t == null ? [r.protein] : Array.isArray(t) ? (t.length ? t : [r.protein]) : [t];
+type TypeState = Pick<AppState, 'typeOf'> & Partial<Pick<AppState, 'customItems'>>;
+const MUSHROOM = /mushroom|shiitake|enoki|shimeji|fungus|portobello/i;
+/** the groups a dish shows under before the family changes anything: its main ingredient, plus Mushroom when it uses mushrooms */
+export function defaultTypes(r: Recipe, state: TypeState): BookType[] {
+  const mush = r.ingredients.some((i) => MUSHROOM.test(i.item) || MUSHROOM.test(state.customItems?.[i.item]?.name ?? ''));
+  return mush ? [r.protein, 'mushroom'] : [r.protein];
 }
-const isType = (r: Recipe, state: Pick<AppState, 'typeOf'>, p: Protein) => typesFor(r, state).includes(p);
-export const TYPES: { id: Protein; title: string; emoji: string }[] = [
+/** the groups a dish shows under: the family's choice (one or several), else its defaults */
+export function typesFor(r: Recipe, state: TypeState): BookType[] {
+  const t = state.typeOf?.[r.id];
+  return t == null ? defaultTypes(r, state) : Array.isArray(t) ? (t.length ? t : defaultTypes(r, state)) : [t];
+}
+const isType = (r: Recipe, state: TypeState, p: BookType) => typesFor(r, state).includes(p);
+export const TYPES: { id: BookType; title: string; emoji: string }[] = [
   { id: 'chicken', title: 'Chicken', emoji: '🍗' }, { id: 'pork', title: 'Pork', emoji: '🥓' }, { id: 'beef', title: 'Beef', emoji: '🥩' },
   { id: 'fish', title: 'Fish', emoji: '🐟' }, { id: 'seafood', title: 'Seafood', emoji: '🦐' }, { id: 'egg', title: 'Eggs', emoji: '🥚' },
   { id: 'tofu', title: 'Tofu', emoji: '🧈' }, { id: 'veg', title: 'Vegetables', emoji: '🥦' },
+  { id: 'mushroom', title: 'Mushroom', emoji: '🍄' },
 ];
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -52,6 +60,7 @@ export function groupsFor(tab: Tab, recipes: Recipe[], state: AppState): Group[]
       mk('seafood', 'Seafood', '🦐', by((r) => dish(r) && isType(r, state, 'seafood'))),
       mk('eggtofu', 'Eggs & tofu', '🥚', by((r) => dish(r) && (isType(r, state, 'egg') || isType(r, state, 'tofu')))),
       mk('veg', 'Vegetables', '🥦', by((r) => dish(r) && isType(r, state, 'veg') && (!!state.typeOf?.[r.id] || (!r.beef && !r.pork)))),
+      mk('mushroom', 'Mushroom', '🍄', by((r) => dish(r) && isType(r, state, 'mushroom'))),
     ];
   } else if (tab === 'Meals') {
     // always shown, even when empty, so the family can see where to put things

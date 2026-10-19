@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { MEALS, TYPES, mealFor, typesFor } from '../data/categories';
+import { MEALS, TYPES, defaultTypes, mealFor, typesFor } from '../data/categories';
 import { useApp } from '../state';
-import { Collection, Protein, Recipe } from '../types';
+import { BookType, Collection, Recipe } from '../types';
 import { Button, C, Chip, F, Label, Row, Text } from '../ui';
 import { Sheet } from './FamilyScreen';
 
@@ -36,16 +36,18 @@ export function NewCategory({ onDone, onClose }: { onDone: (c: Collection) => vo
 export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose: () => void }) {
   const { state, update } = useApp();
   const [making, setMaking] = useState(false);
+  const [editing, setEditing] = useState(false);
   const meal = mealFor(r, state);
   const cols = state.collections ?? [];
   const types = typesFor(r, state);
-  // several groups can be ticked; the last one can't be unticked, and the recipe's own group alone means no override
-  const toggleType = (p: Protein) => update((st) => {
+  // several groups can be ticked; the last one can't be unticked, and the dish's usual groups mean no override
+  const toggleType = (p: BookType) => update((st) => {
     const cur = typesFor(r, st);
     const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
     if (!next.length) return st;
     const o = { ...(st.typeOf ?? {}) };
-    if (next.length === 1 && next[0] === r.protein) delete o[r.id]; else o[r.id] = next;
+    const dflt = defaultTypes(r, st);
+    if (next.length === dflt.length && next.every((x) => dflt.includes(x))) delete o[r.id]; else o[r.id] = next;
     return { ...st, typeOf: o };
   });
   const setMeal = (m: typeof meal) => update((st) => ({ ...st, mealOf: { ...(st.mealOf ?? {}), [r.id]: m ?? 'none' } }));
@@ -69,6 +71,8 @@ export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose:
       <Label>Your own categories</Label>
       {cols.length === 0 && <Text style={{ color: C.muted, fontSize: 13 }}>You have none yet.</Text>}
       <Row>{cols.map((c) => <Chip key={c.id} label={`${c.emoji} ${c.name}`} selected={c.ids.includes(r.id)} onPress={() => toggle(c)} />)}</Row>
+      {cols.length > 0 && <View style={{ marginTop: 10 }}><Chip tone="plain" icon={editing ? 'chevron-up' : 'create-outline'} label={editing ? 'Done editing' : 'Rename or delete your categories'} onPress={() => setEditing(!editing)} /></View>}
+      {editing && cols.map((c) => <CollectionTools key={c.id} id={c.id} named onGone={() => {}} />)}
       <View style={{ marginTop: 14 }}><Button label="Make a new category" kind="ghost" onPress={() => setMaking(true)} /></View>
       {making && <NewCategory onClose={() => setMaking(false)} onDone={(c) => { setMaking(false); update((st) => ({ ...st, collections: (st.collections ?? []).map((x) => x.id === c.id ? { ...x, ids: [...x.ids, r.id] } : x) })); }} />}
     </Sheet>
@@ -76,7 +80,7 @@ export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose:
 }
 
 /** Rename or delete one of your own categories (the dishes in it are not deleted). */
-export function CollectionTools({ id, onGone }: { id: string; onGone: () => void }) {
+export function CollectionTools({ id, named, onGone }: { id: string; named?: boolean; onGone: () => void }) {
   const { state, update } = useApp();
   const c = state.collections?.find((x) => x.id === id);
   const [name, setName] = useState(c?.name ?? '');
@@ -84,7 +88,7 @@ export function CollectionTools({ id, onGone }: { id: string; onGone: () => void
   if (!c) return null;
   return (
     <View style={{ marginTop: 16 }}>
-      <Label>Rename this category</Label>
+      <Label>{named ? `${c.emoji} ${c.name}` : 'Rename this category'}</Label>
       <TextInput value={name} maxLength={30} accessibilityLabel="Category name" style={input}
         onChangeText={(v) => { setName(v); if (v.trim()) update((st) => ({ ...st, collections: (st.collections ?? []).map((x) => x.id === id ? { ...x, name: v.trim() } : x) })); }} />
       <Row style={{ marginTop: 10 }}>
