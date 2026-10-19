@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { recipeById } from '../data/recipes';
 import { CONDITION_LABEL, healthFlags } from '../engine/health';
-import { DAY_NAMES, householdSpiceCap } from '../engine/planner';
+import { planDayName, householdSpiceCap } from '../engine/planner';
 import { Fix, balanceFixes, placeDish, scoreOf } from '../engine/balance';
 import { newId } from '../state';
 import DishPhoto from '../DishPhoto';
@@ -69,7 +69,7 @@ export default function HealthScreen() {
           <View style={{ gap: 6 }}>
             {score.days.map((d) => (
               <Row key={d.day} style={{ flexWrap: 'nowrap', gap: 10 }}>
-                <Text style={{ width: 36, fontWeight: '700' }}>{DAY_NAMES[d.day]}</Text>
+                <Text style={{ width: 36, fontWeight: '700' }}>{planDayName(state.plan, d.day)}</Text>
                 <View style={{ flex: 1 }}><Bar value={d.vegShare} color={d.vegShare >= 0.5 ? C.brand : C.gold} /></View>
                 <Text style={{ width: 92, color: C.muted, fontSize: 12 }}>{Math.round(d.vegShare * 100)}% veg{d.salty > 1 ? ' · salty' : ''}</Text>
               </Row>
@@ -103,7 +103,7 @@ export default function HealthScreen() {
                   <Pressable style={{ flex: 1 }} onPress={() => setPreview(o.r)} accessibilityRole="link" accessibilityLabel={`See ${o.r.name}`}>
                     <Text style={{ fontWeight: '600', color: C.brandDeep, textDecorationLine: 'underline' }}>{o.r.name}</Text>
                     <Text style={{ color: C.muted, fontSize: 12 }}>Score +{o.gain}</Text>
-                    <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[f.day]} would be: {o.after.join(' · ')}</Text>
+                    <Text style={{ color: C.muted, fontSize: 12 }}>{planDayName(state.plan, f.day)} would be: {o.after.join(' · ')}</Text>
                     {o.notes.map((n) => <Text key={n} style={{ color: C.amber, fontSize: 12 }}>{n}</Text>)}
                   </Pressable>
                   <Button small kind="ghost" label={f.replace ? 'Swap' : 'Add'} onPress={() => choose(f, o.r.id)} />
@@ -129,7 +129,7 @@ export default function HealthScreen() {
           <Row><Icon name="nutrition-outline" size={18} color={C.accent} /><H2 style={{ marginBottom: 0 }}>Fruit (optional, not in the score)</H2></Row>
           <Text style={{ color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 19 }}>HPB suggests about 2 servings of fruit a day. The recipes have none, so tick the days fruit is served (a banana, papaya, or cut fruit after dinner).</Text>
           <Row style={{ marginTop: 10, gap: 6 }}>
-            {planDays.map((d) => <Chip key={d} label={DAY_NAMES[d]} selected={fruitDays.includes(d)} onPress={() => toggleFruit(d)} />)}
+            {planDays.map((d) => <Chip key={d} label={planDayName(state.plan, d)} selected={fruitDays.includes(d)} onPress={() => toggleFruit(d)} />)}
           </Row>
           <Text style={{ color: fruitDays.length >= planDays.length ? C.green : C.muted, fontSize: 13, marginTop: 8, fontWeight: '600' }}>
             Fruit on {fruitDays.filter((d) => planDays.includes(d)).length} of {planDays.length} days

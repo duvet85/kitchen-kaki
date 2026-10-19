@@ -61,6 +61,8 @@ const UI = {
   extraTrip: { en: 'You already finished shopping, so you need to go to the shop again.', tl: 'Tapos ka nang mamili, kaya kailangan mong bumalik sa tindahan.', id: 'Belanja sudah selesai, jadi kamu perlu ke toko lagi.', my: 'ဈေးဝယ်ပြီးသွားပြီဖြစ်၍ ဈေးဆိုင်သို့ ထပ်သွားရမည်။' },
   groceriesReady: { en: 'Groceries ready ✓', tl: 'Kumpleto na ang grocery ✓', id: 'Belanjaan lengkap ✓', my: 'ဈေးဝယ်ပစ္စည်း ပြည့်စုံပြီ ✓' },
   familyNote: { en: 'Note from the family', tl: 'Paalala mula sa pamilya', id: 'Catatan dari keluarga', my: 'မိသားစုထံမှ မှတ်ချက်' },
+  weekN: { en: 'Week {n}', tl: 'Linggo {n}', id: 'Minggu {n}', my: 'အပတ် {n}' },
+  pastWeek: { en: 'This is an earlier week. You can still read its recipes and tick what you cook.', tl: 'Ito ay naunang linggo. Puwede mo pa ring basahin ang mga recipe at markahan ang naluto mo.', id: 'Ini minggu sebelumnya. Kamu masih bisa membaca resepnya dan menandai yang sudah dimasak.', my: 'ဒါက အရင်အပတ်ပါ။ ချက်နည်းများကို ဖတ်ပြီး ချက်ပြီးသားကို အမှတ်ခြစ်နိုင်ပါသေးတယ်။' },
   stillToBuy: { en: 'Still to buy: {n}', tl: 'May bibilhin pa: {n}', id: 'Masih harus dibeli: {n}', my: 'ဝယ်ရန် ကျန်သေးသည်- {n}' },
   gotIt: { en: 'OK, got it', tl: 'Sige, naintindihan ko', id: 'Oke, mengerti', my: 'ဟုတ်ကဲ့ နားလည်ပါပြီ' },
   notAvailable: { en: 'Not available', tl: 'Wala sa tindahan', id: 'Tidak ada', my: 'ဆိုင်မှာ မရှိပါ' },

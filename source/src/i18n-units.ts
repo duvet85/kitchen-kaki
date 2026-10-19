@@ -10,6 +10,13 @@ const DAYS: Record<Exclude<Lang, 'en'>, string[]> = {
 
 export const dayLabel = (day: number, lang: Lang, en: string[]): string => (lang === 'en' ? en[day] : DAYS[lang][day] ?? en[day]);
 
+const LOCALE: Record<Lang, string> = { en: 'en-SG', tl: 'fil-PH', id: 'id-ID', my: 'my-MM', zh: 'zh-CN' };
+/** "20 Oct" in the helper's language (the phone's own date names), or "20/10" if the phone has none for it. */
+export function shortDate(iso: string, lang: Lang): string {
+  try { return new Date(iso + 'T00:00:00').toLocaleDateString(LOCALE[lang] ?? 'en-SG', { day: 'numeric', month: 'short' }); }
+  catch { const [, m, d] = iso.split('-').map(Number); return `${d}/${m}`; }
+}
+
 // [tl, id, my, zh] for each unit word (singular and plural share an entry)
 const UNITS: Record<string, [string, string, string, string]> = {
   tbsp: ['kutsara', 'sdm', 'ဟင်းစားဇွန်း', '汤匙'],

@@ -7,7 +7,7 @@ import { ballpark, dishCost, money, roughMoney, shoppingDone, shoppingProgress, 
 import { CATALOGUE } from '../data/store';
 import { healthFlags, mildTip } from '../engine/health';
 import {
-  DAY_NAMES, FAVOURITE_FROM, MEAL_KINDS, addDays, buildWeekPlan, eligibleRecipes, isCooked, isSoup, mealsOn, lovedBy, menuProgress, missingFavourite, mondayOf, pickedSoupDays, vegGap, soupDaysFor, soupsPerWeek, spiceRule, spreadSoupDays,
+  DAY_NAMES, planDayName, dateOfPlanDay, startDateOf, withStart, weekdayOf, FAVOURITE_FROM, MEAL_KINDS, addDays, buildWeekPlan, eligibleRecipes, isCooked, isSoup, mealsOn, lovedBy, menuProgress, missingFavourite, mondayOf, pickedSoupDays, vegGap, soupDaysFor, soupsPerWeek, spiceRule, spreadSoupDays,
 } from '../engine/planner';
 import { StateLens, useApp } from '../state';
 import { draftNextWeek, draftView, fromDraftView, restartWeeks, takeBackWeek } from '../engine/weeks';
@@ -31,6 +31,7 @@ import { groceryFit, planRecipeIds } from '../engine/grocery';
 import { newId } from '../state';
 
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+const fmtDay = (iso: string) => `${DAY_NAMES[weekdayOf(iso)]} ${fmtDate(iso)}`;
 const langName = (l: string) => ({ en: 'English', tl: 'Tagalog', id: 'Bahasa Indonesia', my: 'Burmese', zh: 'Chinese' } as Record<string, string>)[l];
 
 /**
@@ -90,7 +91,7 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
   const findRecipes = () =>
     search((st) => {
       const next = { ...st, refreshCount: st.refreshCount + 1 };
-      return { ...next, plan: buildWeekPlan(next, st.plan?.weekNo ?? 1, st.plan?.weekOf ?? mondayOf()), bought: [], shopSwaps: {}, fruitDays: [], lateItems: [], helperNotes: [] };
+      return { ...next, plan: buildWeekPlan(next, st.plan?.weekNo ?? 1, st.plan ? startDateOf(st.plan) : mondayOf()), bought: [], shopSwaps: {}, fruitDays: [], lateItems: [], helperNotes: [] };
     });
 
   const nextWeek = () => {
@@ -109,7 +110,7 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
   const remove = (target: PlannedDish) => update((st) => removeDish(st, target, newId));
   const mover = useDragMove<PlannedDish>(
     Array.from({ length: settings.daysPerWeek }, (_, day) => ({
-      day, label: DAY_NAMES[day].slice(0, 3), sub: plan ? fmtDate(addDays(plan.weekOf, day)) : '',
+      day, label: planDayName(state.plan, day).slice(0, 3), sub: plan ? fmtDate(dateOfPlanDay(plan, day)) : '',
       blocked: (d: PlannedDish) => d.day === day || !!plan?.dishes.some((x) => x.day === day && x.recipeId === d.recipeId),
     })),
     (d, day) => update((st) => moveDish(st, st.plan?.dishes.find((x) => x.day === d.day && x.recipeId === d.recipeId) ?? d, day, newId)),
@@ -126,12 +127,13 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
     <Screen eyebrow="Step 3" title="Weekly menu" subtitle={`We suggest the week's dishes. You check them, then your ${cookL()} gets the recipes and one shopping list.`}>
       {switcher}
       {draftOfNext && <Notice tone="brand" icon="eye-off-outline">Your {cookL()} still sees week {sentWeek} until you send this one. Sending it starts a fresh shopping list.</Notice>}
+      {plan && !searching && <WeekStart />}
       <Grid cols={isTablet ? 2 : 1}>
       {plan && !searching && (
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
           <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · FROM {fmtDate(plan.weekOf).toUpperCase()}</Text>
+              <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · {fmtDay(startDateOf(plan)).toUpperCase()} TO {fmtDay(addDays(startDateOf(plan), 6)).toUpperCase()}</Text>
               <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 32, marginTop: 4, letterSpacing: -1 }}>{ballpark(cost.fresh)}</Text>
               <Text style={{ color: '#E4E8CF', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
             </View>
@@ -274,8 +276,8 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
             return (
               <View key={day}>
                 <Row style={{ marginTop: 22, marginBottom: 2, gap: 8 }}>
-                  <Text style={{ fontFamily: F.display, fontSize: 18 }}>{DAY_NAMES[day]}</Text>
-                  <Text style={{ color: C.faint, fontSize: 13 }}>{fmtDate(addDays(plan.weekOf, day))}</Text>
+                  <Text style={{ fontFamily: F.display, fontSize: 18 }}>{planDayName(state.plan, day)}</Text>
+                  <Text style={{ color: C.faint, fontSize: 13 }}>{fmtDate(dateOfPlanDay(plan, day))}</Text>
                 </Row>
                 {dayMeals.map((k) => <MealRow key={k} day={day} kind={k} />)}
                 {(() => {
@@ -286,8 +288,8 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
                   const gap = dishes.every((d) => isCooked(plan, d)) ? null : vegGap(state, day);
                   if (!gap) return null;
                   return gap.options.length
-                    ? <Notice tone="warn" icon="leaf-outline">No vegetable dish on {DAY_NAMES[day]}. {gap.options.length === 1 ? 'There is 1 you could add' : `There are ${gap.options.length} you could add`}: tap Dish below and the vegetable ones come first. Nothing changes unless you pick one.</Notice>
-                    : <Notice tone="warn" icon="leaf-outline">No vegetable dish on {DAY_NAMES[day]}, and there are no more suitable ones left for your family's rules (allergies, spice, ratings), so none was added.</Notice>;
+                    ? <Notice tone="warn" icon="leaf-outline">No vegetable dish on {planDayName(state.plan, day)}. {gap.options.length === 1 ? 'There is 1 you could add' : `There are ${gap.options.length} you could add`}: tap Dish below and the vegetable ones come first. Nothing changes unless you pick one.</Notice>
+                    : <Notice tone="warn" icon="leaf-outline">No vegetable dish on {planDayName(state.plan, day)}, and there are no more suitable ones left for your family's rules (allergies, spice, ratings), so none was added.</Notice>;
                 })()}
                 {dishes.map((d) => (
                   <DishCard key={`${d.day}-${d.recipeId}`} recipe={recipeById(d.recipeId)} dish={d} weekIds={ids} spiceCap={spice.cap} onOpen={() => setDetail(recipeById(d.recipeId))}
@@ -406,12 +408,12 @@ function SoupDays({ state, setSettings }: { state: AppState; setSettings: (p: Pa
     <View style={{ marginTop: 4, marginBottom: 16 }}>
       <Text style={{ fontWeight: '700', fontSize: 14, marginBottom: 6 }}>Which days for soup?</Text>
       <Row>
-        {DAY_NAMES.map((n, d) => d < days
+        {[0, 1, 2, 3, 4, 5, 6].map((d) => planDayName(state.plan, d)).map((n, d) => d < days
           ? <Chip key={n} label={n} selected={shown.includes(d)} onPress={() => toggle(d)} />
           : <View key={n} style={{ opacity: 0.4 }} accessibilityLabel={`${n} is not a cooking day`}><Chip label={`${n} off`} /></View>)}
       </Row>
       <Text style={{ color: !picked ? C.muted : left > 0 ? C.amber : C.brandDeep, fontSize: 13, marginTop: 8, fontWeight: '600' }}>
-        {!picked ? `Spread out for you: ${shown.map((d) => DAY_NAMES[d]).join(', ')}`
+        {!picked ? `Spread out for you: ${shown.map((d) => planDayName(state.plan, d)).join(', ')}`
           : `${picked.length} of ${count} chosen${left > 0 ? `. Pick ${left} more day${left === 1 ? '' : 's'}, or the menu spreads the rest out` : ''}`}
       </Text>
       {hint !== '' && <Text style={{ color: C.amber, fontSize: 12, marginTop: 4 }}>{hint}</Text>}
@@ -473,7 +475,7 @@ function DayNote({ dish }: { dish: PlannedDish }) {
     return (
       <View style={{ marginTop: 10, gap: 8 }}>
         <TextInput value={text} onChangeText={setText} autoFocus multiline maxLength={300} placeholder={`For example: less salt today, or cook it by 5pm`} placeholderTextColor={C.faint}
-          accessibilityLabel={`Note for ${DAY_NAMES[dish.day]}`} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 10, fontSize: 15, minHeight: 64, color: C.ink, backgroundColor: '#fff', fontFamily: F.regular, textAlignVertical: 'top' }} />
+          accessibilityLabel={`Note for ${planDayName(state.plan, dish.day)}`} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 10, fontSize: 15, minHeight: 64, color: C.ink, backgroundColor: '#fff', fontFamily: F.regular, textAlignVertical: 'top' }} />
         <Row style={{ gap: 8 }}>
           <Button small icon="checkmark" label="Save note" onPress={() => save(text)} />
           {!!dish.note && <Button small kind="quiet" icon="trash-outline" label="Remove note" onPress={() => save('')} />}
@@ -484,7 +486,7 @@ function DayNote({ dish }: { dish: PlannedDish }) {
     );
   }
   return dish.note ? (
-    <Pressable onPress={() => setText(dish.note ?? '')} accessibilityRole="button" accessibilityLabel={`Edit the ${DAY_NAMES[dish.day]} note`}
+    <Pressable onPress={() => setText(dish.note ?? '')} accessibilityRole="button" accessibilityLabel={`Edit the ${planDayName(state.plan, dish.day)} note`}
       style={{ marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: '#FFF0D2', flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
       <Icon name="chatbox-ellipses-outline" size={16} color={C.amber} />
       <Text style={{ flex: 1, lineHeight: 20 }}>{dish.note}</Text>
@@ -493,7 +495,7 @@ function DayNote({ dish }: { dish: PlannedDish }) {
   ) : (
     <Pressable onPress={() => setText('')} accessibilityRole="button" style={{ marginTop: 8, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 4 }}>
       <Icon name="chatbox-ellipses-outline" size={15} color={C.brand} />
-      <Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>Add a note for {DAY_NAMES[dish.day]}</Text>
+      <Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>Add a note for {planDayName(state.plan, dish.day)}</Text>
     </Pressable>
   );
 }
@@ -547,5 +549,34 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
         <Notice key={m.id} tone="bad" icon="medkit-outline">{m.name}: {flags.join(', ')}. Serve a small portion.</Notice>
       ))}
     </Card>
+  );
+}
+
+/** "Week starts": the family's shopping day can be any day, so a week can start on any of the dates around the usual one. */
+function WeekStart() {
+  const { state, update } = useApp();
+  const plan = state.plan!;
+  const start = startDateOf(plan);
+  // the choices stay put while one is picked, so the row doesn't jump
+  const [base] = useState(start);
+  const [open, setOpen] = useState(false);
+  const days = [-3, -2, -1, 0, 1, 2, 3].map((n) => addDays(base, n));
+  const cooked = plan.cooked.length > 0;
+  return (
+    <View style={{ marginTop: 10, maxWidth: 560 }}>
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`Week starts ${fmtDay(start)}. Change`}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 }}>
+        <Icon name="calendar-outline" size={16} color={C.brand} />
+        <Text style={{ fontWeight: '700' }}>Week starts {fmtDay(start)}</Text>
+        <Text style={{ color: C.brand, fontWeight: '700' }}>{open ? 'Done' : 'Change'}</Text>
+      </Pressable>
+      {open && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Pick the day the week begins, for example your shopping day. The dishes keep their order: the first day's dishes move to the new first day.</Text>
+          <Row>{days.map((d) => <Chip key={d} label={fmtDay(d)} selected={d === start} onPress={() => update((st) => (st.plan ? { ...st, plan: withStart(st.plan, d) } : st))} />)}</Row>
+          {plan.status === 'confirmed' && <Text style={{ color: C.amber, fontSize: 12, lineHeight: 17 }}>This menu is already sent: your {cookL()} sees the new days and dates straight away{cooked ? ', and dishes already cooked stay ticked' : ''}.</Text>}
+        </View>
+      )}
+    </View>
   );
 }

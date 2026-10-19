@@ -1,7 +1,31 @@
 import { AppState, WeekPlan, WeekSnapshot } from '../types';
-import { addDays, buildWeekPlan } from './planner';
+import { addDays, buildWeekPlan, mondayOf, startDateOf } from './planner';
 
 const KEEP_WEEKS = 4;
+
+/** The cook looking at an earlier week: that week's menu, shopping and notes, as if it were the current one. */
+export function pastView(st: AppState, weekNo: number): AppState {
+  const w = st.pastWeeks?.find((x) => x.plan.weekNo === weekNo);
+  if (!w) return st;
+  return { ...st, plan: w.plan, bought: w.bought, shopSwaps: w.shopSwaps ?? {}, shopNames: w.shopNames ?? {}, fruitDays: w.fruitDays ?? [], lateItems: w.lateItems ?? [], helperNotes: w.helperNotes ?? [] };
+}
+/** Ticks made while looking at an earlier week go back into that week; the current week is left as it was. */
+export function fromPastView(st: AppState, v: AppState, weekNo: number): AppState {
+  if (!st.pastWeeks?.some((x) => x.plan.weekNo === weekNo) || !v.plan) return st;
+  return {
+    ...v, plan: st.plan, bought: st.bought, shopSwaps: st.shopSwaps, shopNames: st.shopNames, fruitDays: st.fruitDays, lateItems: st.lateItems, helperNotes: st.helperNotes,
+    pastWeeks: st.pastWeeks.map((w) => (w.plan.weekNo !== weekNo ? w : {
+      ...w, plan: v.plan!, bought: v.bought, shopSwaps: v.shopSwaps, shopNames: v.shopNames, fruitDays: v.fruitDays, lateItems: v.lateItems, helperNotes: v.helperNotes,
+    })),
+  };
+}
+/** The week the cook sees first: the one today falls in, when the newest menu hasn't started yet; else the newest. */
+export function weekForToday(st: AppState, today = localIsoToday()): number | null {
+  if (!st.plan || st.plan.status !== 'confirmed' || today >= startDateOf(st.plan)) return null;
+  const w = [...(st.pastWeeks ?? [])].reverse().find((x) => startDateOf(x.plan) <= today && today < addDays(startDateOf(x.plan), 7));
+  return w ? w.plan.weekNo : null;
+}
+const localIsoToday = () => addDays(mondayOf(), (new Date().getDay() + 6) % 7);
 
 /** The state as it will be once the sent week is done: its dishes count as had, for picking next week's. */
 export function afterSentWeek(st: AppState): AppState {
@@ -14,7 +38,7 @@ export function afterSentWeek(st: AppState): AppState {
 export function draftNextWeek(st: AppState): AppState {
   if (!st.plan) return st;
   const next = { ...afterSentWeek(st), refreshCount: st.refreshCount + 1 };
-  return { ...st, refreshCount: next.refreshCount, nextPlan: buildWeekPlan(next, st.plan.weekNo + 1, addDays(st.plan.weekOf, 7)) };
+  return { ...st, refreshCount: next.refreshCount, nextPlan: buildWeekPlan(next, st.plan.weekNo + 1, addDays(startDateOf(st.plan), 7)) };
 }
 
 const snapshot = (st: AppState, plan: WeekPlan): WeekSnapshot => ({

@@ -6,7 +6,7 @@ import { CATALOGUE } from '../data/store';
 import DishPhoto from '../DishPhoto';
 import { PHOTOS } from '../data/photos';
 import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
-import { DAY_NAMES, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
+import { planDayName, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { AppState, PlannedDish, Recipe } from '../types';
 import { PotRating } from './PotRating';
@@ -191,8 +191,8 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
     .filter((r) => (course === 'soup') === isSoup(r) && r.id !== replace?.recipeId)
     .map((r) => {
       const blocked = today.some((d) => d.recipeId === r.id) ? 'Already on this day'
-        : dayHasHot && rule.isHot(r) ? `${DAY_NAMES[day]} already has a spicy dish` : null;
-      const other = plan.dishes.filter((d) => d.recipeId === r.id && d.day !== day).map((d) => DAY_NAMES[d.day]);
+        : dayHasHot && rule.isHot(r) ? `${planDayName(plan, day)} already has a spicy dish` : null;
+      const other = plan.dishes.filter((d) => d.recipeId === r.id && d.day !== day).map((d) => planDayName(plan, d.day));
       const fills = missing.filter((m) => (predictedStars(r, m, state) ?? 0) >= 4);
       const fit = plan.status === 'confirmed' ? groceryFit(state, r) : null;
       const needVeg = course === 'dish' && !today.some((d) => isVegDish(recipeById(d.recipeId)));
@@ -247,10 +247,10 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
         <Text style={{ fontFamily: F.display, fontSize: 15 }}>{x.r.name}</Text>
         <Text style={{ color: C.muted, fontSize: 12 }}>{cap(x.r.cuisine)} · {x.r.minutes} min · {chillies(x.r.spice)} · {roughMoney(dishCost(x.r))}</Text>
         <PotRating recipe={x.r} />
-        {!x.blocked && x.after.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[day]} would be: {x.after.join(' · ')}</Text>}
+        {!x.blocked && x.after.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>{planDayName(plan, day)} would be: {x.after.join(' · ')}</Text>}
         {x.blocked ? <Text style={{ color: C.amber, fontSize: 12 }}>{x.blocked}</Text> : (
           <Row style={{ gap: 4 }}>
-            {x.needVeg && <Chip tone="good" icon="leaf" label={`A vegetable dish for ${DAY_NAMES[day]}`} />}
+            {x.needVeg && <Chip tone="good" icon="leaf" label={`A vegetable dish for ${planDayName(plan, day)}`} />}
             {x.fills.length > 0 && <Chip tone="good" icon="heart" label={`4+ pots for ${x.fills.map((m) => m.name).join(', ')}`} />}
             {x.fit && (x.fit.toBuy.length === 0
               ? <Chip tone="good" icon="cart-outline" label={x.fit.coming.length ? 'Nothing extra to buy' : 'Uses groceries already bought'} />
@@ -265,7 +265,7 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
   );
 
   return (
-    <Sheet title={replace ? `Swap ${from!.name}` : `Add a ${course} on ${DAY_NAMES[day]}`} onClose={onClose}>
+    <Sheet title={replace ? `Swap ${from!.name}` : `Add a ${course} on ${planDayName(plan, day)}`} onClose={onClose}>
       {replace && (
         <Pressable onPress={onClose} accessibilityRole="button" style={{ marginTop: 10, flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
           <Icon name="close-circle-outline" size={18} color={C.muted} />
@@ -281,8 +281,8 @@ export function DishPicker({ day, course, replace, onPick, onClose }: {
           <Row style={{ marginTop: 8 }}><Chip label="Only dishes that need no extra shopping" selected={onlyHave} onPress={() => setOnlyHave(!onlyHave)} /></Row>
         </>
       )}
-      {missing.length > 0 && !term && <Text style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>{missing.map((m) => m.name).join(', ')} {missing.length === 1 ? "doesn't" : "don't"} have a 4-pot dish on {DAY_NAMES[day]} yet.</Text>}
-      {best.length > 0 && <Label>Best for {DAY_NAMES[day]}</Label>}
+      {missing.length > 0 && !term && <Text style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>{missing.map((m) => m.name).join(', ')} {missing.length === 1 ? "doesn't" : "don't"} have a 4-pot dish on {planDayName(plan, day)} yet.</Text>}
+      {best.length > 0 && <Label>Best for {planDayName(plan, day)}</Label>}
       {best.map(row)}
       {term ? <><Label>Matches</Label>{all.map(row)}</> : (
         <>

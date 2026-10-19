@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, TextInput, View } from 'react-native';
 import { RECIPES, recipeById } from '../data/recipes';
-import { DAY_NAMES } from '../engine/planner';
+import { DAY_NAMES, todayPlanDay } from '../engine/planner';
 import { useApp } from '../state';
 import { Recipe } from '../types';
 import { Button, C, Card, Chip, F, Icon, Row, Screen, Text } from '../ui';
@@ -35,7 +35,8 @@ export default function HomeScreen() {
   const term = q.trim().toLowerCase();
   const rows = RECIPES.filter((r) => !r.sickDay && !state.hiddenRecipes?.includes(r.id) && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const today = (new Date().getDay() + 6) % 7;
+  const weekday = (new Date().getDay() + 6) % 7;
+  const today = todayPlanDay(state.plan);
   const todays = (state.plan?.dishes ?? []).filter((d) => d.day === today).map((d) => recipeById(d.recipeId)).filter((r): r is Recipe => !!r);
   const todayMeals = (['breakfast', 'lunch'] as const).map((k) => ({ k, m: state.plan?.meals?.find((x) => x.day === today && x.meal === k) })).filter((x) => x.m)
     .map((x) => ({ label: x.k === 'breakfast' ? 'Breakfast' : 'Lunch', r: RECIPES.find((r) => r.id === x.m!.recipeId) })).filter((x): x is { label: string; r: Recipe } => !!x.r);
@@ -47,7 +48,7 @@ export default function HomeScreen() {
         <View style={{ position: 'absolute', right: -34, top: -34, width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.35)' }} />
         <View style={{ position: 'absolute', right: 34, top: 30, width: 54, height: 54, borderRadius: 27, backgroundColor: C.accent }} />
         <View style={{ position: 'absolute', right: 14, top: 74, width: 30, height: 30, borderRadius: 15, backgroundColor: C.sage }} />
-        <Text style={{ color: C.brandDeep, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1.2 }}>{DAY_NAMES[today].toUpperCase()}, TODAY</Text>
+        <Text style={{ color: C.brandDeep, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1.2 }}>{DAY_NAMES[weekday].toUpperCase()}, TODAY</Text>
         {todayMeals.length > 0 && (
           <View style={{ marginTop: 6, gap: 2, paddingRight: 90 }}>
             {todayMeals.map((x) => (

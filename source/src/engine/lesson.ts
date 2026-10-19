@@ -4,7 +4,7 @@ import { CATALOGUE } from '../data/store';
 import { AppState, Lesson, LessonStep, PlannedDish, Recipe } from '../types';
 import { placeDish, removeDish } from './balance';
 import { groceryFit, PANTRY } from './grocery';
-import { DAY_NAMES, dishKey, eligibleRecipes, familyScore, householdSpiceCap } from './planner';
+import { dishKey, planDayName, planDayOfWeekday, eligibleRecipes, familyScore, householdSpiceCap } from './planner';
 import { isMastered, localDate, markMastered, recordCooked } from './recognition';
 
 /*
@@ -145,7 +145,7 @@ export function planDayOf(st: AppState, date: string): number | null {
   const diff = Math.round((new Date(y2, m2 - 1, d2).getTime() - new Date(y, m - 1, d).getTime()) / 86400000);
   // weekOf may be the Sunday before (see recognition.onPlannedDay), so match on the weekday within that week
   if (diff < -1 || diff > 7) return null;
-  return (new Date(y2, m2 - 1, d2).getDay() + 6) % 7;
+  return planDayOfWeekday(st.plan, (new Date(y2, m2 - 1, d2).getDay() + 6) % 7);
 }
 
 const lessonDishes = (st: AppState, id: string) => st.plan?.dishes.filter((d) => d.lesson === id) ?? [];
@@ -248,7 +248,7 @@ export const lessonOf = (st: AppState, d: PlannedDish) => (d.lesson ? st.lessons
 
 export const describeDay = (st: AppState, date: string) => {
   const day = planDayOf(st, date);
-  return day === null ? date : DAY_NAMES[day];
+  return day === null ? date : planDayName(st.plan, day);
 };
 
 export const trioOf = (l: Lesson) => l.dishes.map((d) => recipeById(d.recipeId));

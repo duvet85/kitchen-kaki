@@ -1,8 +1,8 @@
 import { recipeById } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
-import { AppState, Recipe } from '../types';
+import { AppState, Recipe, WeekPlan } from '../types';
 import { PANTRY } from './grocery';
-import { DAY_NAMES, dayAfter, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, isVegDish, spiceRule } from './planner';
+import { DAY_NAMES, dayAfter, planDayName, planDayOfWeekday, startDateOf, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, isVegDish, spiceRule } from './planner';
 
 /**
  * "Ask Kitchen Kaki": last-minute changes to a confirmed week.
@@ -176,13 +176,13 @@ export function replan(state: AppState, ask: Ask, now = new Date()): { changes: 
   if (!plan) return { changes: [], days: [], note: 'There is no menu yet. Make and confirm one on the Menu tab first.' };
   const planDays = [...new Set(plan.dishes.map((d) => d.day))].sort((a, b) => a - b);
   const last = planDays[planDays.length - 1];
-  const ti = todayIndex(plan.weekOf, now);
+  const ti = todayIndex(startDateOf(plan), now);
   const today = ti < planDays[0] || ti > last ? planDays[0] : ti;
   const scope = ask.scope ?? (ask.missing.length ? 'rest' : ask.needs.includes('light') ? 'tomorrow+' : 'today');
   // A weekday in the message means only that day, whatever else it says.
   const days = ask.day != null ? planDays.filter((d) => d === ask.day) : planDays.filter((d) =>
     scope === 'today' ? d === today : scope === 'tomorrow' ? d === today + 1 : scope === 'tomorrow+' ? d === today || d === today + 1 : d >= today);
-  if (!days.length) return { changes: [], days, note: ask.day != null ? `There is no dinner on ${DAY_NAMES[ask.day]} this week, so there is nothing to change.` : 'Nothing is left on this week\'s menu for that day. Make next week\'s menu on the Menu tab.' };
+  if (!days.length) return { changes: [], days, note: ask.day != null ? `There is no dinner on ${planDayName(plan, ask.day)} this week, so there is nothing to change.` : 'Nothing is left on this week\'s menu for that day. Make next week\'s menu on the Menu tab.' };
 
   const uncooked = plan.dishes.filter((d) => !isCooked(plan, d));
   const affected = uncooked.filter((d) => {
@@ -306,7 +306,9 @@ export function applyChanges(st: AppState, changes: Change[], newId: () => strin
   };
 }
 
-export const dayName = (d: number) => DAY_NAMES[d] ?? `Day ${d + 1}`;
+export const dayName = (d: number, plan?: WeekPlan | null) => planDayName(plan, d);
+/** Ask Kaki reads weekdays (Thursday = 3); the menu counts days from its first day. Turns the one into the other. */
+export const onPlanWeek = <A extends Ask | null>(a: A, plan?: WeekPlan | null): A => (a && a.day != null && plan ? { ...a, day: planDayOfWeekday(plan, a.day) } : a);
 
 /** Dishes to offer when someone asks for one to be added on a day. Never changes anything; the owner taps one to add it. */
 export function addSuggestions(state: AppState, ask: Ask) {
@@ -380,16 +382,17 @@ export function describeAsk(a: Ask | null): string {
 }
 
 /** What Kaki would put on screen for a reading, in a line or two. Nothing is changed: this is only the proposal. */
-export function describeKaki(state: AppState, a: Ask | null): string {
+export function describeKaki(state: AppState, raw: Ask | null): string {
+  const a = onPlanWeek(raw, state.plan);
   if (!a) return 'Says she did not catch it and shows the suggestion chips.';
   if (a.topic) return TOPIC_REPLY[a.topic];
   if (!state.plan) return 'Asks for a menu to be made first.';
   if (a.add) {
     if (a.day == null) return 'Asks which day, with a button for each day. Nothing is added until you tap a dish.';
     const r = addSuggestions(state, a);
-    return `${r.picks.length ? `Offers ${r.picks.map((p) => p.r.name).join(', ')} on ${DAY_NAMES[a.day]}; you tap one to add it.` : `No dish to offer on ${DAY_NAMES[a.day]}.`}${r.leftOut.length ? ` Left out for the family: ${r.leftOut.map((l) => `${l.name} (${l.reasons.join('; ')})`).join(', ')}.` : ''}`;
+    return `${r.picks.length ? `Offers ${r.picks.map((p) => p.r.name).join(', ')} on ${planDayName(state.plan, a.day)}; you tap one to add it.` : `No dish to offer on ${planDayName(state.plan, a.day)}.`}${r.leftOut.length ? ` Left out for the family: ${r.leftOut.map((l) => `${l.name} (${l.reasons.join('; ')})`).join(', ')}.` : ''}`;
   }
   const res = replan(state, a);
   if (res.note) return res.note;
-  return `Proposes, for ${res.days.map(dayName).join(' and ')}: ${res.changes.map((c) => `${c.fromId === c.toId ? `keep ${recipeById(c.fromId).name} cooked lighter` : `${recipeById(c.fromId).name} → ${c.toId ? recipeById(c.toId).name : 'no swap found'}`}`).join('; ')}. You confirm before anything changes.`;
+  return `Proposes, for ${res.days.map((d) => planDayName(state.plan, d)).join(' and ')}: ${res.changes.map((c) => `${c.fromId === c.toId ? `keep ${recipeById(c.fromId).name} cooked lighter` : `${recipeById(c.fromId).name} → ${c.toId ? recipeById(c.toId).name : 'no swap found'}`}`).join('; ')}. You confirm before anything changes.`;
 }

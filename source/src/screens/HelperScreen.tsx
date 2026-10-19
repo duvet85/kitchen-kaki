@@ -7,11 +7,12 @@ import { recipeText, ingredientLabel, fullyTranslated, itemNames } from '../ai/t
 import GeminiTranslate from '../ai/GeminiTranslate';
 import { ShoppingLine, planRecipeIds, ballpark, roughMoney, shoppingDone, shoppingList, shoppingProgress } from '../engine/grocery';
 import { mildTip } from '../engine/health';
-import { dayLabel } from '../i18n-units';
+import { dayLabel, shortDate } from '../i18n-units';
 import { qtyLabel } from '../i18n-units';
-import { DAY_NAMES, dishKey, householdSpiceCap, isCooked } from '../engine/planner';
+import { DAY_NAMES, addDays, dateOfPlanDay, dishKey, householdSpiceCap, isCooked, startDateOf, weekdayOfPlanDay } from '../engine/planner';
+import { fromPastView, pastView, weekForToday } from '../engine/weeks';
 import { LANGS, t } from '../i18n';
-import { newId, useApp } from '../state';
+import { StateLens, newId, useApp } from '../state';
 import DishPhoto from '../DishPhoto';
 import { KakiSays } from '../Kaki';
 import { Lang } from '../types';
@@ -27,9 +28,13 @@ const AISLE_ICON = { 'Meat & Seafood': 'fish-outline', 'Fruit & Veg': 'nutrition
 export default function HelperScreen() {
   const { state, update, family } = useApp();
   const lang = state.settings.helperLang;
-  const [view, setView] = useState<'recipes' | 'shopping'>('recipes');
-  const plan = state.plan?.status === 'confirmed' ? state.plan : null;
   const now = useTimerTick();
+  const sent = state.plan?.status === 'confirmed' ? state.plan : null;
+  const past = sent ? state.pastWeeks ?? [] : [];
+  // an earlier week the cook opened (its week number), or null for the newest menu
+  const [pick, setPick] = useState<number | null>(() => weekForToday(state));
+  const shown = pick != null && past.some((w) => w.plan.weekNo === pick) ? pick : null;
+  const weeks = [...past.map((w) => w.plan), ...(sent ? [sent] : [])];
 
   return (
     <Screen eyebrow={family?.role === 'helper' ? undefined : `${cook()}'s phone`} title={t('title', lang)}>
@@ -40,35 +45,52 @@ export default function HelperScreen() {
           <Chip key={l.key} label={l.label} selected={lang === l.key} onPress={() => update((st) => ({ ...st, settings: { ...st.settings, helperLang: l.key } }))} />
         ))}
       </Row>
-
-      {!plan ? (
-        <KakiSays style={{ marginTop: 18 }}>{t('helloEmpty', lang)}</KakiSays>
-      ) : (
-        <>
-          <KakiSays>{t('hello', lang)}</KakiSays>
-          <ChangeNotes lang={lang} />
-          {lang !== 'en' && <GeminiTranslate lang={lang} />}
-          {lang !== 'en' && planRecipeIds(plan).some((id) => !fullyTranslated(recipeById(id), lang, state)) && (
-            <View style={{ maxWidth: 520 }}><Notice tone="warn" icon="language-outline">{t('stepsEnglish', lang)}</Notice></View>
-          )}
-          <View style={{ flexDirection: 'row', marginTop: 16, backgroundColor: '#F3E7D4', borderRadius: 14, padding: 4, maxWidth: 520 }}>
-            {(['recipes', 'shopping'] as const).map((v) => {
-              const on = view === v;
-              return (
-                <Pressable key={v} onPress={() => setView(v)} style={{ flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, backgroundColor: on ? C.card : 'transparent' }}>
-                  <Icon name={v === 'recipes' ? 'book-outline' : 'cart-outline'} size={16} color={on ? C.brand : C.muted} />
-                  <Text style={{ fontWeight: '700', color: on ? C.brandDeep : C.muted }}>{v === 'recipes' ? t('recipes', lang) : t('shopping', lang)}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {view === 'recipes' ? <Recipes lang={lang} /> : <Shopping lang={lang} />}
-          <Text style={{ color: C.faint, fontSize: 11, marginTop: 18, textAlign: 'center' }}>
-            Prototype: Gemini translations are machine-made. Ask a native speaker to check them.
-          </Text>
-        </>
+      {weeks.length > 1 && (
+        <Row style={{ marginTop: 14 }}>
+          {weeks.map((w) => {
+            const from = startDateOf(w);
+            const on = (shown ?? sent!.weekNo) === w.weekNo;
+            return <Chip key={w.weekNo} icon="calendar-outline" selected={on} label={`${t('weekN', lang, { n: w.weekNo })} · ${shortDate(from, lang)} – ${shortDate(addDays(from, 6), lang)}`}
+              onPress={() => setPick(w.weekNo === sent!.weekNo ? null : w.weekNo)} />;
+          })}
+        </Row>
       )}
+      {shown != null
+        ? <StateLens key={`week-${shown}`} view={(s) => pastView(s, shown)} back={(s, v) => fromPastView(s, v, shown)}><HelperWeek lang={lang} earlier /></StateLens>
+        : <HelperWeek key="newest" lang={lang} />}
     </Screen>
+  );
+}
+
+function HelperWeek({ lang, earlier }: { lang: Lang; earlier?: boolean }) {
+  const { state } = useApp();
+  const [view, setView] = useState<'recipes' | 'shopping'>('recipes');
+  const plan = state.plan?.status === 'confirmed' ? state.plan : null;
+  if (!plan) return <KakiSays style={{ marginTop: 18 }}>{t('helloEmpty', lang)}</KakiSays>;
+  return (
+    <>
+      {earlier ? <View style={{ maxWidth: 520, marginTop: 12 }}><Notice tone="brand" icon="time-outline">{t('pastWeek', lang)}</Notice></View> : <KakiSays>{t('hello', lang)}</KakiSays>}
+      {!earlier && <ChangeNotes lang={lang} />}
+      {lang !== 'en' && <GeminiTranslate lang={lang} />}
+      {lang !== 'en' && planRecipeIds(plan).some((id) => !fullyTranslated(recipeById(id), lang, state)) && (
+        <View style={{ maxWidth: 520 }}><Notice tone="warn" icon="language-outline">{t('stepsEnglish', lang)}</Notice></View>
+      )}
+      <View style={{ flexDirection: 'row', marginTop: 16, backgroundColor: '#F3E7D4', borderRadius: 14, padding: 4, maxWidth: 520 }}>
+        {(['recipes', 'shopping'] as const).map((v) => {
+          const on = view === v;
+          return (
+            <Pressable key={v} onPress={() => setView(v)} style={{ flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, backgroundColor: on ? C.card : 'transparent' }}>
+              <Icon name={v === 'recipes' ? 'book-outline' : 'cart-outline'} size={16} color={on ? C.brand : C.muted} />
+              <Text style={{ fontWeight: '700', color: on ? C.brandDeep : C.muted }}>{v === 'recipes' ? t('recipes', lang) : t('shopping', lang)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {view === 'recipes' ? <Recipes lang={lang} /> : <Shopping lang={lang} />}
+      <Text style={{ color: C.faint, fontSize: 11, marginTop: 18, textAlign: 'center' }}>
+        Prototype: Gemini translations are machine-made. Ask a native speaker to check them.
+      </Text>
+    </>
   );
 }
 
@@ -175,7 +197,7 @@ function Recipes({ lang }: { lang: Lang }) {
       <Grid cols={Math.min(3, cols(300))}>
         {days.map((day) => (
           <View key={day}>
-            <Text style={{ fontFamily: F.display, fontSize: 18, marginTop: 22 }}>{dayLabel(day, lang, DAY_NAMES)}</Text>
+            <Text style={{ fontFamily: F.display, fontSize: 18, marginTop: 22 }}>{dayLabel(weekdayOfPlanDay(plan, day), lang, DAY_NAMES)} <Text style={{ fontFamily: F.regular, color: C.muted, fontSize: 14 }}>{shortDate(dateOfPlanDay(plan, day), lang)}</Text></Text>
             {(plan.meals ?? []).filter((m) => m.day === day).sort((a, b) => (a.meal === 'breakfast' ? 0 : 1) - (b.meal === 'breakfast' ? 0 : 1)).map((m) => renderDish({ recipeId: m.recipeId, day: m.day, isNew: false }, m.meal))}
             {hasMeals && plan.dishes.some((d) => d.day === day) && <Text style={{ marginTop: 10, color: C.muted, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1 }}>{t('dinner', lang).toUpperCase()}</Text>}
             {plan.dishes.filter((d) => d.day === day).map((d) => renderDish(d))}
@@ -399,19 +421,19 @@ function ChangeNotes({ lang }: { lang: Lang }) {
           <View key={`${c.day}-${c.to}-${c.kind ?? ''}`}>
             {c.kind ? (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(weekdayOfPlanDay(state.plan, c.day), lang, DAY_NAMES)}: </Text>
                 <Text style={{ fontWeight: '700', ...(c.kind === 'remove' ? { color: C.muted, textDecorationLine: 'line-through' as const } : {}) }}>{recipeText(recipeById(c.to), lang, state).name}</Text>
                 {`  ·  ${c.kind === 'add' ? t('dishAdded', lang) : t('dishCancelled', lang)}`}
               </Text>
             ) : c.to === c.from ? (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(weekdayOfPlanDay(state.plan, c.day), lang, DAY_NAMES)}: </Text>
                 <Text style={{ fontWeight: '700' }}>{recipeText(recipeById(c.to), lang, state).name}</Text>
                 {` · ${t('cookLighter', lang)}: ${(c.how ?? []).map((h) => t(h, lang)).join(', ')}`}
               </Text>
             ) : (
               <Text style={{ lineHeight: 20 }}>
-                <Text style={{ fontWeight: '800' }}>{dayLabel(c.day, lang, DAY_NAMES)}: </Text>
+                <Text style={{ fontWeight: '800' }}>{dayLabel(weekdayOfPlanDay(state.plan, c.day), lang, DAY_NAMES)}: </Text>
                 <Text style={{ color: C.muted, textDecorationLine: 'line-through' }}>{recipeText(recipeById(c.from), lang, state).name}</Text>
                 {'  →  '}
                 <Text style={{ fontWeight: '700' }}>{recipeText(recipeById(c.to), lang, state).name}</Text>

@@ -1,7 +1,7 @@
 import { CATALOGUE } from '../data/store';
 import { recipeById } from '../data/recipes';
 import { mealFor } from '../data/categories';
-import { eligibleRecipes, isCooked, isSoup } from '../engine/planner';
+import { eligibleRecipes, isCooked, isSoup, startDateOf, weekdayOfPlanDay } from '../engine/planner';
 import { AppState } from '../types';
 import { todayIndex } from '../engine/hiccup';
 
@@ -24,11 +24,11 @@ export interface KakiContext {
 export function kakiContext(state: AppState, now = new Date()): KakiContext {
   const plan = state.plan;
   const days = plan ? [...new Set(plan.dishes.map((d) => d.day))].sort((a, b) => a - b) : [];
-  const ti = plan ? todayIndex(plan.weekOf, now) : 0;
+  const ti = plan ? todayIndex(startDateOf(plan), now) : 0;
   return {
-    today: DAY_KEYS[Math.min(6, Math.max(0, ti))],
+    today: DAY_KEYS[plan ? weekdayOfPlanDay(plan, Math.min(6, Math.max(0, ti))) : (now.getDay() + 6) % 7],
     menu: days.map((day) => ({
-      day: DAY_KEYS[day],
+      day: DAY_KEYS[weekdayOfPlanDay(plan, day)],
       dishes: plan!.dishes.filter((d) => d.day === day && !isCooked(plan!, d)).map((d) => {
         const r = recipeById(d.recipeId);
         return { id: r.id, name: r.name, spice: r.spice, ingredients: r.ingredients.map((i) => ({ item: i.item, name: CATALOGUE[i.item]?.name ?? i.item })) };

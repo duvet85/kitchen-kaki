@@ -110,7 +110,7 @@ export interface Collection { id: string; name: string; emoji: string; ids: stri
 
 export interface PlannedDish {
   recipeId: string;
-  day: number; // 0 = Monday
+  day: number; // 0 = the week's first day (Monday unless the week was moved)
   isNew: boolean;
   /** added to the day by hand, on top of the usual dishes */
   added?: boolean;
@@ -131,7 +131,10 @@ export interface SavedMenu {
 
 export interface WeekPlan {
   weekNo: number;
+  /** the week's first date (YYYY-MM-DD) */
   weekOf: string;
+  /** weekday of the first date, 0 = Monday; missing on older menus, which always started on Monday */
+  startDay?: number;
   dishes: PlannedDish[];
   /** breakfasts and lunches, when the owner switched them on (dinner and soups are in `dishes`) */
   meals?: PlannedMeal[];

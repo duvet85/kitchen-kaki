@@ -4,7 +4,7 @@ import { AppState, PlannedDish, Recipe } from '../types';
 import { groceryFit, planRecipeIds, shoppingList } from './grocery';
 import { balanceScore, isFried } from './health';
 import { applyChanges } from './hiccup';
-import { DAY_NAMES, dayAfter, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, missingFavourite, spiceRule } from './planner';
+import { dayAfter, planDayName, dishKey, eligibleRecipes, familyScore, isCooked, isSoup, missingFavourite, spiceRule } from './planner';
 
 /** A way to make the week more balanced. The owner picks one of the options, picks a dish themselves, or leaves it. */
 export interface Fix {
@@ -62,7 +62,7 @@ export function balanceFixes(state: AppState): Fix[] {
           const gain = total(dishes) - base;
           return [{ r, gain, day: d.day, replace: d, sc: gain * 2 + familyScore(r, state) + (r.protein === from.protein ? 1 : 0) }];
         }));
-      if (options.length) return { key, text: text(from, DAY_NAMES[d.day]), day: d.day, replace: d, options };
+      if (options.length) return { key, text: text(from, planDayName(plan, d.day)), day: d.day, replace: d, options };
     }
     return null;
   };
@@ -81,7 +81,7 @@ export function balanceFixes(state: AppState): Fix[] {
         const gain = total([...plan.dishes, { recipeId: r.id, day, isNew: true }]) - base;
         return { r, gain, day, sc: gain * 2 + familyScore(r, state) };
       }));
-      if (options.length) fixes.push({ key: 'veg', text: `${DAY_NAMES[day]} is only ${Math.round(low.vegShare * 100)}% vegetables (aim for about two thirds). Add a vegetable dish?`, day, options });
+      if (options.length) fixes.push({ key: 'veg', text: `${planDayName(plan, day)} is only ${Math.round(low.vegShare * 100)}% vegetables (aim for about two thirds). Add a vegetable dish?`, day, options });
     } else {
       const meaty = plan.dishes.filter((d) => d.day === day && open(d)).sort((a, b) => recipeById(a.recipeId).plate.veg - recipeById(b.recipeId).plate.veg);
       push(swapFix('veg', meaty, vegDish, (f, dn) => `${dn} is light on vegetables. Swap ${f.name} for a vegetable dish?`));

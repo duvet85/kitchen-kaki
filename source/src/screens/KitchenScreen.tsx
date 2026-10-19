@@ -12,7 +12,7 @@ import {
   POINTS, THANKS_PER_DAY, awaitingConfirm, badges, cookedSet, cookedThisWeek, cookName, helperName, helperOf, isThanks, logOf, markMastered, markSeen, masteredMap,
   newCelebrations, openTips, recognitionOn, recordText, setConfidence, tipSeen, undoEvent,
 } from '../engine/recognition';
-import { DAY_NAMES, eligibleRecipes } from '../engine/planner';
+import { planDayName, eligibleRecipes } from '../engine/planner';
 import { newId, useApp } from '../state';
 import { Lang, Lesson, Recipe } from '../types';
 import { Button, C, Card, Chip, EmptyState, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, pots, s, useLayout } from '../ui';
@@ -120,7 +120,7 @@ function OwnerKitchen({ preview }: { preview: () => void }) {
                   <DishPhoto recipe={r} size={52} />
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={{ fontFamily: F.display, fontSize: 15 }}>{r.name}</Text>
-                    <Text style={{ color: C.muted, fontSize: 12 }}>{DAY_NAMES[dish.day]}{at ? ` · cooked ${shortDate(at)}` : ''}{dish.lesson ? ' · lesson' : ''}</Text>
+                    <Text style={{ color: C.muted, fontSize: 12 }}>{planDayName(state.plan, dish.day)}{at ? ` · cooked ${shortDate(at)}` : ''}{dish.lesson ? ' · lesson' : ''}</Text>
                     <Row style={{ gap: 4 }}>
                       {m ? <Chip tone="good" icon="ribbon" label="Mastered" /> : conf && conf >= 4 ? <Chip tone="brand" icon="kaki-pot" label={`Confident ${pots(conf)}`} /> : null}
                       {(state.dishTweaks?.[r.id] ?? []).length > 0 && <Chip tone="warn" icon="bulb-outline" label="Has a tip" />}

@@ -2,10 +2,10 @@ import { DAY_KEYS, KakiRaw } from '../ai/kaki';
 import { HINTS, MEAT } from '../ai/draft';
 import { applyCustomRecipes, recipeById, RECIPES } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
-import { AppState, PlannedDish, Protein, Recipe, Spice } from '../types';
+import { AppState, PlannedDish, WeekPlan, Protein, Recipe, Spice } from '../types';
 import { placeDish, removeDish } from './balance';
 import { groceryFit } from './grocery';
-import { DAY_NAMES, dayAfter, eligibleRecipes, exclusionReasons, householdSpiceCap, isCooked } from './planner';
+import { dayAfter, planDayName, planDayOfWeekday, eligibleRecipes, exclusionReasons, householdSpiceCap, isCooked } from './planner';
 
 /** One edit Gemini proposed that passed the app's own checks. Nothing is applied until the owner confirms. */
 export type KakiAction =
@@ -103,10 +103,11 @@ export function resolveKaki(state: AppState, raw: KakiRaw, idGen: () => string =
 
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 6)) {
     const type = str(a.type);
-    const day = DAY_KEYS.indexOf(str(a.day).toLowerCase().slice(0, 3) as (typeof DAY_KEYS)[number]);
+    const wd = DAY_KEYS.indexOf(str(a.day).toLowerCase().slice(0, 3) as (typeof DAY_KEYS)[number]);
+    const day = wd < 0 ? -1 : planDayOfWeekday(plan, wd);
     const dishId = str(a.dish), toId = str(a.to);
     const target = plan.dishes.find((d) => d.day === day && d.recipeId === dishId);
-    const where = day >= 0 ? DAY_NAMES[day] : 'that day';
+    const where = day >= 0 ? planDayName(plan, day) : 'that day';
     // adding is fine on a day with no dish yet; the other edits need a dish on that day
     if (day < 0 || (type !== 'add' && !plan.dishes.some((d) => d.day === day))) { dropped.push(day < 0 ? 'I could not tell which day you meant.' : `There is no dinner on ${where}.`); continue; }
     const candidate = (id: string) => {
@@ -172,8 +173,8 @@ export function applyKaki(st: AppState, actions: KakiAction[], newId: () => stri
 }
 
 /** One line per edit, for the tester and the card. */
-export function describeKakiAction(a: KakiAction): string {
-  const day = DAY_NAMES[a.day];
+export function describeKakiAction(a: KakiAction, plan?: WeekPlan | null): string {
+  const day = planDayName(plan, a.day);
   if (a.kind === 'add') return `Add ${a.recipe.name} on ${day}`;
   if (a.kind === 'swap') return `${day}: ${recipeById(a.fromId).name} → ${a.recipe.name}`;
   if (a.kind === 'remove') return `Take ${recipeById(a.fromId).name} off ${day}`;

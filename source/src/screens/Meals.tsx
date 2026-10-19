@@ -7,7 +7,7 @@ import DishPhoto from '../DishPhoto';
 import { mealFor } from '../data/categories';
 import { MEAL_LABEL, mealChoices, mealKey, mealOn, placeMeal, removeMeal, setMealPlanned } from '../engine/meals';
 import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
-import { DAY_NAMES, MEAL_KINDS, exclusionReasons, familyScore, isCooked } from '../engine/planner';
+import { planDayName, MEAL_KINDS, exclusionReasons, familyScore, isCooked } from '../engine/planner';
 import { newId, useApp } from '../state';
 import { PlannedMealKind, Recipe } from '../types';
 import { Button, C, Chip, F, Icon, IconButton, Row, Text, chillies } from '../ui';
@@ -101,9 +101,9 @@ function MealPicker({ day, kind, current, onPick, onClose }: { day: number; kind
   const leftOut = useMemo(() => RECIPES.filter((r) => mealFor(r, state) === kind).map((r) => ({ r, why: exclusionReasons(r, state.members) })).filter((x) => x.why.length), [state, kind]);
   const [preview, setPreview] = useState<Recipe | null>(null);
   const L = MEAL_LABEL[kind];
-  const elsewhere = (id: string) => (plan.meals ?? []).filter((m) => m.meal === kind && m.recipeId === id && m.day !== day).map((m) => DAY_NAMES[m.day]);
+  const elsewhere = (id: string) => (plan.meals ?? []).filter((m) => m.meal === kind && m.recipeId === id && m.day !== day).map((m) => planDayName(plan, m.day));
   return (
-    <Sheet title={`${current ? 'Swap' : 'Add'} ${L.title.toLowerCase()} on ${DAY_NAMES[day]}`} onClose={onClose}>
+    <Sheet title={`${current ? 'Swap' : 'Add'} ${L.title.toLowerCase()} on ${planDayName(plan, day)}`} onClose={onClose}>
       {current && (
         <Pressable onPress={onClose} accessibilityRole="button" style={{ marginTop: 10, flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.card }}>
           <Icon name="close-circle-outline" size={18} color={C.muted} />

@@ -102,8 +102,8 @@ export function dayAfter(state: AppState, day: number, r: Recipe, replace?: Plan
   const after = [...rest, r];
   const rule = spiceRule(state);
   const blocks: string[] = [], soft: string[] = [];
-  if (before.some(isVegDish) && !after.some(isVegDish)) blocks.push(`Takes away ${DAY_NAMES[day]}'s only vegetable dish`);
-  if (rule.isHot(r) && rest.some((x) => rule.isHot(x))) blocks.push(`A second spicy dish on ${DAY_NAMES[day]}`);
+  if (before.some(isVegDish) && !after.some(isVegDish)) blocks.push(`Takes away ${planDayName(state.plan, day)}'s only vegetable dish`);
+  if (rule.isHot(r) && rest.some((x) => rule.isHot(x))) blocks.push(`A second spicy dish on ${planDayName(state.plan, day)}`);
   const sameMain = rest.find((x) => !isSoup(x) && !isSoup(r) && r.protein !== 'veg' && x.protein === r.protein);
   if (sameMain) soft.push(`Same main as ${sameMain.name}`);
   const salty = rest.find((x) => x.sodium === 'high');
@@ -266,7 +266,26 @@ export function addDays(iso: string, n: number) {
   return localIso(d);
 }
 
+/** Weekday names, Monday first. A menu's `day` counts from the week's first day, so name it with planDayName. */
 export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+type WeekRef = Pick<WeekPlan, 'weekOf' | 'startDay'> | null | undefined;
+/** Weekday (0 = Monday) of a YYYY-MM-DD date. */
+export const weekdayOf = (iso: string) => (new Date(iso + 'T00:00:00').getDay() + 6) % 7;
+/** Weekday (0 = Monday) a menu's first day falls on. Menus from before the start could be moved always began on Monday. */
+export const startDayOf = (p: WeekRef) => p?.startDay ?? 0;
+/** The first date of a menu's week. Older menus can hold the Sunday before (see recognition.onPlannedDay), so they use the nearest Monday. */
+export const startDateOf = (p: Pick<WeekPlan, 'weekOf' | 'startDay'>) => (p.startDay == null ? mondayOf(new Date(addDays(p.weekOf, 3) + 'T00:00:00')) : p.weekOf);
+export const dateOfPlanDay = (p: Pick<WeekPlan, 'weekOf' | 'startDay'>, day: number) => addDays(startDateOf(p), day);
+export const weekdayOfPlanDay = (p: WeekRef, day: number) => (startDayOf(p) + day) % 7;
+/** "Tue" for day 0 of a week that starts on Tuesday. */
+export const planDayName = (p: WeekRef, day: number) => DAY_NAMES[weekdayOfPlanDay(p, day)] ?? `Day ${day + 1}`;
+/** The menu day a weekday (0 = Monday) falls on, e.g. Thursday is day 2 of a week that starts on Tuesday. */
+export const planDayOfWeekday = (p: WeekRef, weekday: number) => (weekday - startDayOf(p) + 7) % 7;
+/** Today's menu day (by weekday, so it also works for a week that has not started or has ended). */
+export const todayPlanDay = (p: WeekRef, now = new Date()) => planDayOfWeekday(p, (now.getDay() + 6) % 7);
+/** Moves a draft to start on another date; each dish keeps its place in the week. */
+export const withStart = (p: WeekPlan, date: string): WeekPlan => ({ ...p, weekOf: date, startDay: weekdayOf(date) });
 
 /** Builds a draft menu for the owner to review. */
 export function buildWeekPlan(state: AppState, weekNo: number, weekOf: string): WeekPlan {
@@ -380,7 +399,7 @@ export function buildWeekPlan(state: AppState, weekNo: number, weekOf: string): 
   dishes.sort((a, b) => a.day - b.day || Number(isSoup(recipeById(a.recipeId))) - Number(isSoup(recipeById(b.recipeId))));
 
   const meals = buildMeals(state, weekOf);
-  return { weekNo, weekOf, dishes, ...(meals.length ? { meals } : {}), status: 'draft', cooked: [] };
+  return { weekNo, weekOf, startDay: weekdayOf(weekOf), dishes, ...(meals.length ? { meals } : {}), status: 'draft', cooked: [] };
 }
 
 export const MEAL_KINDS: PlannedMealKind[] = ['breakfast', 'lunch'];

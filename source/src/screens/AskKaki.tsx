@@ -1,3 +1,4 @@
+import { AppState } from '../types';
 import { cookL } from '../cook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,7 +12,7 @@ import { kakiContext } from '../ai/kaki';
 import { KakiAction, KakiPlan, applyKaki, describeKakiAction, kakiToBuy, resolveKaki } from '../engine/kakiPlan';
 import { recipeById } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
-import { ADAPT_LABEL, Ask, Change, NEED_LABEL, TOPIC_REPLY, addSuggestions, applyChanges, dayName, fromGemini, replan, understand } from '../engine/hiccup';
+import { ADAPT_LABEL, Ask, Change, NEED_LABEL, TOPIC_REPLY, addSuggestions, applyChanges, dayName, fromGemini, onPlanWeek, replan, understand } from '../engine/hiccup';
 import { placeDish } from '../engine/balance';
 import { groceryFit } from '../engine/grocery';
 import { newId, useApp } from '../state';
@@ -38,7 +39,7 @@ type Msg =
 
 const INTRO_KEY = 'kitchenKaki.askKakiIntroSeen';
 
-const scopeText = (a: Ask) => (a.day != null ? dayName(a.day) : a.scope === 'today' ? 'today' : a.scope === 'tomorrow' ? 'tomorrow' : a.scope === 'rest' ? 'the rest of the week' : null);
+const scopeText = (a: Ask, plan: AppState['plan']) => (a.day != null ? dayName(a.day, plan) : a.scope === 'today' ? 'today' : a.scope === 'tomorrow' ? 'tomorrow' : a.scope === 'rest' ? 'the rest of the week' : null);
 
 /** Floating button that opens the chat. */
 export function AskKakiButton() {
@@ -77,7 +78,8 @@ function AskKaki({ onClose }: { onClose: () => void }) {
   const scroll = useRef<ScrollView>(null);
   const push = (...m: Msg[]) => { setMsgs((x) => [...x, ...m]); setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50); };
 
-  const answer = (ask: Ask) => {
+  const answer = (read: Ask) => {
+    const ask = onPlanWeek(read, state.plan);
     if (ask.topic) return push({ id: newId(), who: 'kaki', text: TOPIC_REPLY[ask.topic] });
     if (ask.add) {
       if (!state.plan) return push({ id: newId(), who: 'kaki', text: 'Make and confirm a menu on the Menu tab first, then I can help add a dish.' });
@@ -87,14 +89,14 @@ function AskKaki({ onClose }: { onClose: () => void }) {
       ...ask.needs.map((n) => NEED_LABEL[n]),
       ...(ask.missing.length ? [`no ${[...new Set(ask.missing.map((k) => CATALOGUE[k].name.toLowerCase()))].join(', ')}`] : []),
     ];
-    const when = scopeText(ask);
+    const when = scopeText(ask, state.plan);
     const res = replan(state, ask);
     const got = `Can! Noted: ${parts.join('; ')}${when ? `, for ${when}` : ''}.`;
     if (res.note) return push({ id: newId(), who: 'kaki', text: `${got} ${res.note}` });
     push(
       {
         id: newId(), who: 'kaki',
-        text: `${got} Here's what I'd do for ${res.days.map(dayName).join(' and ')}, ${
+        text: `${got} Here's what I'd do for ${res.days.map((d) => dayName(d, state.plan)).join(' and ')}, ${
           res.changes.some((c) => c.toId && c.toBuy.length) ? 'using the groceries in the kitchen where I can (anything to buy is marked 🛒)' : 'all from the groceries already in the kitchen'}:`,
       },
       { id: newId(), who: 'proposal', changes: res.changes, status: 'open' },
@@ -167,7 +169,7 @@ function AskKaki({ onClose }: { onClose: () => void }) {
     gate.ask(groceryFit(state, recipeById(id)).toBuy, () => {
       update((st) => placeDish(st, day, id, undefined, newId));
       setMsgs((x) => x.map((y) => (y.id === m.id ? { ...m, status: 'done' } : y)));
-      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${recipeById(id).name} is added on ${dayName(day)}.${state.plan?.status === 'confirmed' ? ` The ${cookL()} will see a note about it.` : ''}` });
+      push({ id: newId(), who: 'kaki', text: `Done, kaki! ${recipeById(id).name} is added on ${dayName(day, state.plan)}.${state.plan?.status === 'confirmed' ? ` The ${cookL()} will see a note about it.` : ''}` });
     });
 
   const apply = (m: Extract<Msg, { who: 'proposal' }>) => gate.ask(m.changes.filter((c) => c.toId).flatMap((c) => c.toBuy), () => doApply(m));
@@ -246,12 +248,13 @@ function Bubble({ text, me }: { text: string; me?: boolean }) {
 }
 
 function KakiCard({ m, onApply, onDismiss }: { m: Extract<Msg, { who: 'kplan' }>; onApply: () => void; onDismiss: () => void }) {
+  const { state } = useApp();
   const name = (k: string) => CATALOGUE[k]?.name.toLowerCase() ?? k;
   const line = (a: KakiAction) => {
-    const day = dayName(a.day).toUpperCase();
+    const day = dayName(a.day, state.plan).toUpperCase();
     const to = a.kind === 'remove' ? null : a.recipe;
     return (
-      <View key={describeKakiAction(a)} style={{ gap: 6 }}>
+      <View key={describeKakiAction(a, state.plan)} style={{ gap: 6 }}>
         <Text style={{ fontSize: 12, fontWeight: '800', color: C.accent, letterSpacing: 1 }}>{day} · {a.kind === 'add' ? 'ADD' : a.kind === 'swap' ? 'SWAP' : a.kind === 'remove' ? 'TAKE OFF' : 'COOK DIFFERENTLY'}</Text>
         <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
           {to && <DishPhoto recipe={to} size={48} />}
@@ -292,8 +295,8 @@ function AddCard({ m, onDay, onPick, onDismiss }: { m: Extract<Msg, { who: 'add'
   const res = m.day != null ? addSuggestions(state, { ...m.ask, day: m.day }) : null;
   return (
     <View style={{ alignSelf: 'stretch', backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 10, borderWidth: m.status === 'done' ? 2 : 0, borderColor: C.green }}>
-      <Text style={{ lineHeight: 21 }}>{m.day == null ? `Can! Which day do you want ${what} on?` : `Can! Here are some choices for ${what} on ${dayName(m.day)}. Nothing is added until you tap one.`}</Text>
-      {m.day == null && m.status === 'open' && <Row style={{ gap: 8 }}>{days.map((d) => <Button key={d} small kind="ghost" label={dayName(d)} onPress={() => onDay(d)} />)}</Row>}
+      <Text style={{ lineHeight: 21 }}>{m.day == null ? `Can! Which day do you want ${what} on?` : `Can! Here are some choices for ${what} on ${dayName(m.day, state.plan)}. Nothing is added until you tap one.`}</Text>
+      {m.day == null && m.status === 'open' && <Row style={{ gap: 8 }}>{days.map((d) => <Button key={d} small kind="ghost" label={dayName(d, state.plan)} onPress={() => onDay(d)} />)}</Row>}
       {res && res.picks.map(({ r, notes }) => (
         <View key={r.id} style={{ gap: 6, borderTopWidth: 1, borderColor: C.line, paddingTop: 10 }}>
           <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
@@ -306,7 +309,7 @@ function AddCard({ m, onDay, onPick, onDismiss }: { m: Extract<Msg, { who: 'add'
               {(() => { const b = groceryFit(state, r).toBuy; return b.length ? <Text style={{ color: C.amber, fontSize: 12, fontWeight: '700' }}>🛒 Needs buying: {b.map((k) => CATALOGUE[k]?.name.toLowerCase() ?? k).join(', ')}</Text> : <Text style={{ color: C.green, fontSize: 12, fontWeight: '700' }}>✓ Nothing extra to buy</Text>; })()}
             </View>
           </Row>
-          {m.status === 'open' && <Button small icon="add" label={`Add on ${dayName(m.day!)}`} onPress={() => onPick(m.day!, r.id)} />}
+          {m.status === 'open' && <Button small icon="add" label={`Add on ${dayName(m.day!, state.plan)}`} onPress={() => onPick(m.day!, r.id)} />}
         </View>
       ))}
       {res && !res.picks.length && <Text style={{ color: C.muted }}>I couldn't find a matching dish that suits your family.</Text>}
@@ -320,6 +323,7 @@ function AddCard({ m, onDay, onPick, onDismiss }: { m: Extract<Msg, { who: 'add'
 }
 
 function Proposal({ m, onApply, onDismiss }: { m: Extract<Msg, { who: 'proposal' }>; onApply: () => void; onDismiss: () => void }) {
+  const { state } = useApp();
   const real = m.changes.filter((c) => c.toId);
   return (
     <View style={{ alignSelf: 'stretch', backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 12, borderWidth: m.status === 'applied' ? 2 : 0, borderColor: C.green }}>
@@ -330,7 +334,7 @@ function Proposal({ m, onApply, onDismiss }: { m: Extract<Msg, { who: 'proposal'
         if (c.adapt) {
           return (
             <View key={`${c.day}-${c.fromId}`} style={{ gap: 6 }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: C.accent, letterSpacing: 1 }}>{dayName(c.day).toUpperCase()}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: C.accent, letterSpacing: 1 }}>{dayName(c.day, state.plan).toUpperCase()}</Text>
               <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
                 <DishPhoto recipe={from} size={48} />
                 <View style={{ flex: 1 }}>
@@ -344,7 +348,7 @@ function Proposal({ m, onApply, onDismiss }: { m: Extract<Msg, { who: 'proposal'
         }
         return (
           <View key={`${c.day}-${c.fromId}`} style={{ gap: 6 }}>
-            <Text style={{ fontSize: 12, fontWeight: '800', color: C.accent, letterSpacing: 1 }}>{dayName(c.day).toUpperCase()}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: C.accent, letterSpacing: 1 }}>{dayName(c.day, state.plan).toUpperCase()}</Text>
             <Row style={{ flexWrap: 'nowrap', gap: 10 }}>
               {to && <DishPhoto recipe={to} size={48} />}
               <View style={{ flex: 1 }}>

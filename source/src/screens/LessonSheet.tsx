@@ -15,7 +15,7 @@ import {
   teachScore, trioOf, trioProblems,
 } from '../engine/lesson';
 import { cookName, helperOf, isMastered, localDate } from '../engine/recognition';
-import { DAY_NAMES } from '../engine/planner';
+import { planDayName } from '../engine/planner';
 import { TIP_TEXT, tk } from '../i18n-kitchen';
 import { LANGS } from '../i18n';
 import { newId, useApp } from '../state';
@@ -211,7 +211,7 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
                   <Text style={{ color: C.muted, fontSize: 12 }}>{r.minutes} min · {chillies(r.spice)}</Text>
                   <Row style={{ gap: 4 }}>
                     {isMastered(state, r.id) ? <Chip tone="good" icon="ribbon" label="Already mastered" /> : !state.history.includes(r.id) ? <Chip tone="new" icon="sparkles" label="New dish" /> : null}
-                    {state.plan?.dishes.some((d) => d.recipeId === r.id) && <Chip tone="plain" icon="calendar-outline" label={`On ${state.plan.dishes.filter((d) => d.recipeId === r.id).map((d) => DAY_NAMES[d.day]).join(', ')}'s menu`} />}
+                    {state.plan?.dishes.some((d) => d.recipeId === r.id) && <Chip tone="plain" icon="calendar-outline" label={`On ${state.plan.dishes.filter((d) => d.recipeId === r.id).map((d) => planDayName(state.plan, d.day)).join(', ')}'s menu`} />}
                   </Row>
                 </View>
                 <Button small kind="ghost" label="Swap" onPress={() => setSwapping(slot)} />
@@ -262,12 +262,12 @@ export function LessonPlanner({ onClose, editing }: { onClose: () => void; editi
               : <Text style={{ color: C.green, fontWeight: '600' }}>Nothing extra to buy.</Text>}
             {groc.toBuy.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>About {roughMoney(groc.cost)} extra (sample prices, not real NTUC prices).</Text>}
             {day !== null && menuMode !== 'separate' && trio.filter((r) => state.plan?.dishes.some((d) => d.recipeId === r.id && d.day !== day)).map((r) => (
-              <Text key={r.id} style={{ color: C.amber, fontSize: 12 }}>{r.name} is also on {state.plan!.dishes.filter((d) => d.recipeId === r.id && d.day !== day).map((d) => DAY_NAMES[d.day]).join(', ')}'s menu: buy enough for both days, or swap that day's dish.</Text>
+              <Text key={r.id} style={{ color: C.amber, fontSize: 12 }}>{r.name} is also on {state.plan!.dishes.filter((d) => d.recipeId === r.id && d.day !== day).map((d) => planDayName(state.plan, d.day)).join(', ')}'s menu: buy enough for both days, or swap that day's dish.</Text>
             ))}
             {groc.pantry.length > 0 && <Text style={{ color: C.muted, fontSize: 12 }}>Check the kitchen for: {groc.pantry.map((k) => CATALOGUE[k]?.name ?? k).join(', ')}.</Text>}
           </Card>
 
-          <Label>{day === null ? 'On the menu' : `On ${DAY_NAMES[day]}'s menu`}</Label>
+          <Label>{day === null ? 'On the menu' : `On ${planDayName(state.plan, day)}'s menu`}</Label>
           {([
             ['dinner', 'The lesson is that day’s dinner', 'The three dishes replace that day’s dishes. Nothing extra to cook.'],
             ['extra', 'Cook on top of the day’s dishes', 'The lesson dishes are added to that day.'],

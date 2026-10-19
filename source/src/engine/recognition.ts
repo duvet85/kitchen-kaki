@@ -3,8 +3,8 @@ import { BADGES, BadgeKey, OPPOSITE, RANKS, TIP_TEXT, isPraise, tk } from '../i1
 import { dishName } from '../ai/text';
 import { methodOf } from '../data/methods';
 import { RECIPES, recipeById } from '../data/recipes';
-import { AppState, KitchenEvent, Lang, Recipe, TipTag } from '../types';
-import { dishKey } from './planner';
+import { AppState, KitchenEvent, WeekPlan, Lang, Recipe, TipTag } from '../types';
+import { dishKey, weekdayOfPlanDay } from './planner';
 
 /*
  * Recognition for the helper: thanks, tips, mastered dishes, points, ranks and badges.
@@ -168,10 +168,10 @@ export const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getM
  * True when `now` is the planned weekday of this menu's week. Compares weekdays rather than dates, because
  * weekOf can be a day off in time zones ahead of UTC (it is built with toISOString).
  */
-export function onPlannedDay(weekOf: string, day: number, now = new Date()) {
-  const [y, m, d] = weekOf.split('-').map(Number);
+export function onPlannedDay(plan: Pick<WeekPlan, 'weekOf' | 'startDay'>, day: number, now = new Date()) {
+  const [y, m, d] = plan.weekOf.split('-').map(Number);
   const days = (now.getTime() - new Date(y, m - 1, d).getTime()) / 86400000;
-  return (now.getDay() + 6) % 7 === day && days > -2 && days < 9;
+  return (now.getDay() + 6) % 7 === weekdayOfPlanDay(plan, day) && days > -2 && days < 9;
 }
 /** The date of day n (0 = Monday) of the week starting on `weekOf`, worked out in local time. */
 export function dateOfDay(weekOf: string, n: number) {
@@ -192,7 +192,7 @@ export function recordCooked(st: AppState, key: string, newId: () => string, now
   if (!st.history.includes(recipeId) && !log.some((e) => e.kind === 'newDish' && e.recipeId === recipeId)) {
     next = push(next, { id: newId(), kind: 'newDish', recipeId, dish: key, weekOf: st.plan.weekOf });
   }
-  if (!Number.isNaN(day) && onPlannedDay(st.plan.weekOf, day, now)
+  if (!Number.isNaN(day) && onPlannedDay(st.plan, day, now)
     && !log.some((e) => e.kind === 'onTime' && e.dish === key && e.weekOf === st.plan!.weekOf)) {
     next = push(next, { id: newId(), kind: 'onTime', recipeId, dish: key, weekOf: st.plan.weekOf });
   }
