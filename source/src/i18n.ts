@@ -60,6 +60,7 @@ const UI = {
   lateNote: { en: 'The menu changed, so there are new things to buy: {names}.', tl: 'Nagbago ang menu, kaya may mga bagong bibilhin: {names}.', id: 'Menu berubah, jadi ada barang baru yang harus dibeli: {names}.', my: 'ဟင်းလျာ ပြောင်းသွားသောကြောင့် ဝယ်ရန် အသစ်များ ရှိသည်- {names}။' },
   extraTrip: { en: 'You already finished shopping, so you need to go to the shop again.', tl: 'Tapos ka nang mamili, kaya kailangan mong bumalik sa tindahan.', id: 'Belanja sudah selesai, jadi kamu perlu ke toko lagi.', my: 'ဈေးဝယ်ပြီးသွားပြီဖြစ်၍ ဈေးဆိုင်သို့ ထပ်သွားရမည်။' },
   groceriesReady: { en: 'Groceries ready ✓', tl: 'Kumpleto na ang grocery ✓', id: 'Belanjaan lengkap ✓', my: 'ဈေးဝယ်ပစ္စည်း ပြည့်စုံပြီ ✓' },
+  familyNote: { en: 'Note from the family', tl: 'Paalala mula sa pamilya', id: 'Catatan dari keluarga', my: 'မိသားစုထံမှ မှတ်ချက်' },
   stillToBuy: { en: 'Still to buy: {n}', tl: 'May bibilhin pa: {n}', id: 'Masih harus dibeli: {n}', my: 'ဝယ်ရန် ကျန်သေးသည်- {n}' },
   gotIt: { en: 'OK, got it', tl: 'Sige, naintindihan ko', id: 'Oke, mengerti', my: 'ဟုတ်ကဲ့ နားလည်ပါပြီ' },
   notAvailable: { en: 'Not available', tl: 'Wala sa tindahan', id: 'Tidak ada', my: 'ဆိုင်မှာ မရှိပါ' },

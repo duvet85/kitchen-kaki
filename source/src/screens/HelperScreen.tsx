@@ -126,6 +126,7 @@ function Recipes({ lang }: { lang: Lang }) {
                   <Text style={{ color: C.accent, fontWeight: '700', fontSize: 12 }}>{t('stepOf', lang, { n: prog.step + 1, m: tr.steps.length })}</Text>
                 </View>
               )}
+              {d.note && <Notice tone="warn" icon="chatbox-ellipses-outline">{t('familyNote', lang)}: {d.note}</Notice>}
               {mildTip(r, spiceCap) && <Notice tone="warn" icon="flame-outline">{t('mild', lang)}</Notice>}
               {!cooked && !expanded && (
                 <View style={{ marginTop: 10 }}>

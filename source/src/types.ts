@@ -114,6 +114,8 @@ export interface PlannedDish {
   added?: boolean;
   /** part of a cooking lesson (the lesson's id) */
   lesson?: string;
+  /** the family's note for this dish on this day ("Less salt, Grandma is eating", "Cook at 5pm"), shown to the cook */
+  note?: string;
 }
 
 /** A whole week's menu the owner saved under a name ("Menu A") to bring back later. Only recipe ids and days: the rules are checked again when it is used. */

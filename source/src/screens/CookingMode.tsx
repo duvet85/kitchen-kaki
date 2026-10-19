@@ -123,6 +123,7 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
   const r = recipeById(recipeId.split('@')[0]);
   const { steps, name, stepsTranslated } = recipeText(r, lang, state);
   const prog = state.cooking[recipeId] ?? { step: -1, done: [] };
+  const dayNote = state.plan?.dishes.find((d) => `${d.recipeId}@${d.day}` === recipeId)?.note;
   const i = prog.step; // -1 = ingredients check
   const setProg = (p: { step: number; done: number[] }) => update((st) => ({ ...st, cooking: { ...st.cooking, [recipeId]: p } }));
   const mins = i >= 0 ? stepMinutes(r.steps[i]) : null;
@@ -172,6 +173,7 @@ export default function CookingMode({ recipeId, lang, onClose }: { recipeId: str
         <Text style={{ fontSize: 11, fontWeight: '700', color: C.brand, letterSpacing: 1.2 }}>{r.emoji}  {r.minutes} {t('minutes', lang).toUpperCase()}</Text>
         <Text style={{ fontFamily: F.displayX, fontSize: 22 * (isTablet ? 1.2 : 1), lineHeight: 28 * (isTablet ? 1.2 : 1) }} numberOfLines={2}>{name}</Text>
         {lang !== 'en' && !stepsTranslated && <Text style={{ color: C.amber, fontSize: 12, fontWeight: '600', marginTop: 4, lineHeight: 17 }}>{t('stepsEnglish', lang)}</Text>}
+        {dayNote && <Text style={{ color: C.brandDeep, fontSize: 14, fontWeight: '700', marginTop: 6, lineHeight: 20, backgroundColor: '#FFF0D2', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>{t('familyNote', lang)}: {dayNote}</Text>}
       </View>
       <IconButton icon="close" label={t('close', lang)} onPress={onClose} />
     </Row>

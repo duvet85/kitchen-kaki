@@ -152,6 +152,12 @@ async function check(key: string) {
 // Browsers can't read other websites, so the function fetches the page. Only public http(s) pages are fetched.
 
 const IMPORT_UA = 'Mozilla/5.0 (compatible; KitchenKakiBot/1.0; private family recipe book)';
+/** Some recipe sites turn away anything that doesn't look like a phone browser (other recipe apps send a browser's name). The family asked
+ *  for this one page, so when the polite name is refused, ask once more the way the family's own phone would. */
+const PHONE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-SG,en;q=0.9',
+};
 const MAX_PAGE = 2_500_000;
 
 class ImportError extends Error { constructor(public code: string, public status = 422) { super(code); } }
@@ -200,8 +206,10 @@ async function fetchPage(start: string): Promise<{ html: string; url: string }> 
   for (let hop = 0; hop < 5; hop++) {
     await checkPublic(url);
     let res: Response;
+    const get = (headers: Record<string, string>) => fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000), headers });
     try {
-      res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': IMPORT_UA, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5', 'Accept-Language': 'en' } });
+      res = await get({ 'User-Agent': IMPORT_UA, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5', 'Accept-Language': 'en' });
+      if ([401, 403, 406, 429, 503].includes(res.status)) { await res.body?.cancel(); res = await get(PHONE_HEADERS); }
     } catch (e) { throw new ImportError((e as Error)?.name === 'TimeoutError' ? 'page_slow' : 'page_unreachable', 502); }
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       try { url = new URL(res.headers.get('location')!, url); } catch { throw new ImportError('bad_url', 400); }
@@ -325,6 +333,26 @@ const EXTRA_LABEL = /(seasonings?|condiments?|sauce|marinade|調味料|调味料
 const STEP_LABEL = /(method|steps?|directions?|instructions?|preparation|how to (make|cook)|做法|步驟|步骤|煮法|cara( memasak| membuat)?)/i;
 const STOP_LABEL = /^(notes?|tips?|share|labels?|posted by|\d+ comments?|comments?|subscribe|related|you may also like|newer post|older post)\b/i;
 const isLabel = (l: string, re: RegExp) => l.length <= 40 && re.test(l) && (/[:：]\s*$/.test(l) || l.split(/\s+/).length <= 4);
+/** The recipe card of the common WordPress recipe plugins (WP Recipe Maker, Tasty Recipes, Mediavine Create), read from the page itself. */
+function cardRecipe(html: string): { ingredients: string[]; steps: string[] } | null {
+  // elements whose class list has exactly this class (not "…-group" or "…-amount"), read as plain text
+  const grab = (tag: string, cls: string) => [...html.matchAll(new RegExp(`<(${tag})\\b[^>]*\\bclass\\s*=\\s*["'](?:[^"']*\\s)?${cls}(?:\\s[^"']*)?["'][^>]*>([\\s\\S]*?)<\\/\\1>`, 'gi'))]
+    .map((m) => plain(m[2])).filter((x) => x.length > 1);
+  const items = (box: string) => {
+    const m = html.match(new RegExp(`\\bclass\\s*=\\s*["'](?:[^"']*\\s)?${box}(?:\\s[^"']*)?["'][^>]*>([\\s\\S]*?)(?:<\\/ol>|<\\/ul>)`, 'i'));
+    return m ? [...m[1].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].map((x) => plain(x[1])).filter(Boolean) : [];
+  };
+  const pairs: [string[], string[]][] = [
+    [grab('li', 'wprm-recipe-ingredient'), grab('div|span|p', 'wprm-recipe-instruction-text')],
+    [items('mv-create-ingredients'), items('mv-create-instructions')],
+    [items('tasty-recipes-ingredients(?:-body)?'), items('tasty-recipes-instructions(?:-body)?')],
+  ];
+  for (const [ing, stp] of pairs) {
+    if (ing.length >= 2 && stp.length >= 2) return { ingredients: ing.slice(0, 60), steps: stp.slice(0, 40).map((x) => x.slice(0, 600)) };
+  }
+  return null;
+}
+
 function textRecipe(html: string) {
   const body = html.replace(/<(script|style|noscript|svg|nav|header|footer|form|iframe|aside)[\s\S]*?<\/\1>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
   const lines = decode(body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d|tr|blockquote)>/gi, '\n').replace(/<[^>]+>/g, ' '))
@@ -364,8 +392,8 @@ async function importRecipe(link: string) {
       ...(() => { const own = recipeVideo(r.video, url), found = own || pageVideo(html, url); return { video: found || null, videoFrom: own ? 'recipe' : found ? 'page' : null }; })(),
     };
   }
-  // No recipe data, but the page writes the recipe out under "Ingredients" and "Method" labels: read those, word for word.
-  const tr = textRecipe(html);
+  // No recipe data, but the page writes the recipe out under "Ingredients" and "Method" labels (or in a recipe plugin's card): read those, word for word.
+  const tr = cardRecipe(html) ?? textRecipe(html);
   if (tr) {
     return {
       found: true, fromText: true, url, site: site.slice(0, 60),

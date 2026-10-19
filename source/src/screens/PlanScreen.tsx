@@ -1,7 +1,7 @@
 import { cook, cookL } from '../cook';
 import { DishHistory } from './LearnCook';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { recipeById } from '../data/recipes';
 import { ballpark, dishCost, money, roughMoney, shoppingDone, shoppingProgress, weekCost } from '../engine/grocery';
 import { CATALOGUE } from '../data/store';
@@ -459,6 +459,45 @@ function FamilyMenuCard({ progress: p, newPerDay, plan }: { progress: ReturnType
   );
 }
 
+/** The family's note for this dish on this day only (the same dish on another day has its own). Shown on the cook's phone. */
+function DayNote({ dish }: { dish: PlannedDish }) {
+  const { state, update } = useApp();
+  const [text, setText] = useState<string | null>(null);
+  const sent = state.plan?.status === 'confirmed';
+  const save = (v: string) => {
+    const note = v.trim().slice(0, 300) || undefined;
+    update((st) => st.plan ? { ...st, plan: { ...st.plan, dishes: st.plan.dishes.map((d) => d.day === dish.day && d.recipeId === dish.recipeId ? { ...d, note } : d) } } : st);
+    setText(null);
+  };
+  if (text !== null) {
+    return (
+      <View style={{ marginTop: 10, gap: 8 }}>
+        <TextInput value={text} onChangeText={setText} autoFocus multiline maxLength={300} placeholder={`For example: less salt today, or cook it by 5pm`} placeholderTextColor={C.faint}
+          accessibilityLabel={`Note for ${DAY_NAMES[dish.day]}`} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 10, fontSize: 15, minHeight: 64, color: C.ink, backgroundColor: '#fff', fontFamily: F.regular, textAlignVertical: 'top' }} />
+        <Row style={{ gap: 8 }}>
+          <Button small icon="checkmark" label="Save note" onPress={() => save(text)} />
+          {!!dish.note && <Button small kind="quiet" icon="trash-outline" label="Remove note" onPress={() => save('')} />}
+          <Button small kind="quiet" label="Cancel" onPress={() => setText(null)} />
+        </Row>
+        {sent && <Text style={{ color: C.muted, fontSize: 12 }}>Your {cookL()} sees the change straight away.</Text>}
+      </View>
+    );
+  }
+  return dish.note ? (
+    <Pressable onPress={() => setText(dish.note ?? '')} accessibilityRole="button" accessibilityLabel={`Edit the ${DAY_NAMES[dish.day]} note`}
+      style={{ marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: '#FFF0D2', flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+      <Icon name="chatbox-ellipses-outline" size={16} color={C.amber} />
+      <Text style={{ flex: 1, lineHeight: 20 }}>{dish.note}</Text>
+      <Icon name="create-outline" size={16} color={C.muted} />
+    </Pressable>
+  ) : (
+    <Pressable onPress={() => setText('')} accessibilityRole="button" style={{ marginTop: 8, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 4 }}>
+      <Icon name="chatbox-ellipses-outline" size={15} color={C.brand} />
+      <Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>Add a note for {DAY_NAMES[dish.day]}</Text>
+    </Pressable>
+  );
+}
+
 function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen, handle }: { recipe: Recipe; dish: PlannedDish; weekIds: string[]; spiceCap: number; onSwap?: () => void; onRemove?: () => void; onOpen: () => void; handle?: React.ReactNode }) {
   const { state } = useApp();
   const rating = state.ratings[r.id];
@@ -502,6 +541,7 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
         const fans = lovedBy(r, state);
         return fans.length ? <Text style={{ color: C.green, fontSize: 12, marginTop: 8, fontWeight: '600' }}>♥ 4+ pots for {fans.map((m) => m.name).join(', ')}</Text> : null;
       })()}
+      <DayNote dish={dish} />
       {vegOnly.length > 0 && <Notice tone="brand" icon="leaf-outline">Not for {vegOnly.map((m) => m.name).join(', ')} (vegetarian)</Notice>}
       {warnings.map(({ m, flags }) => (
         <Notice key={m.id} tone="bad" icon="medkit-outline">{m.name}: {flags.join(', ')}. Serve a small portion.</Notice>

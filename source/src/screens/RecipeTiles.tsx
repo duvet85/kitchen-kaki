@@ -25,12 +25,18 @@ function TileGrid({ children }: { children: (size: number) => React.ReactNode[] 
   );
 }
 
-function Tile({ recipe, size, label, count, heart, onPress, a11y, bar = 0 }: { recipe: Recipe; size: number; label: string; count?: number; heart?: boolean; onPress: () => void; a11y: string; bar?: number }) {
+function Tile({ recipe, size, label, count, heart, onPress, a11y, bar = 0, picked }: { recipe: Recipe; size: number; label: string; count?: number; heart?: boolean; onPress: () => void; a11y: string; bar?: number; /** in "pick several": undefined = not picking */ picked?: boolean }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y} style={{ width: size, height: size, borderRadius: 20, overflow: 'hidden', backgroundColor: C.brandSoft }}>
+    <Pressable onPress={onPress} accessibilityRole={picked === undefined ? 'button' : 'checkbox'} accessibilityState={picked === undefined ? undefined : { checked: picked }} accessibilityLabel={a11y}
+      style={{ width: size, height: size, borderRadius: 20, overflow: 'hidden', backgroundColor: C.brandSoft, borderWidth: picked ? 4 : 0, borderColor: C.brand, opacity: picked === false ? 0.75 : 1 }}>
       <DishPhoto recipe={recipe} banner height={size} style={{ marginBottom: 0, borderRadius: 0 }} placeholder={false} />
       <CoverFallback recipe={recipe} size={size} />
       {heart && <View style={{ position: 'absolute', top: 6, right: 6 }}><Icon name="heart" size={16} color="#fff" /></View>}
+      {picked !== undefined && (
+        <View style={{ position: 'absolute', top: 6, left: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: picked ? C.brand : 'rgba(255,255,255,0.85)', borderWidth: 2, borderColor: picked ? '#fff' : C.line, alignItems: 'center', justifyContent: 'center' }}>
+          {picked && <Icon name="checkmark" size={16} color="#fff" />}
+        </View>
+      )}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: count != null ? BARS[bar % BARS.length] : 'rgba(36,24,16,0.66)', paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Text numberOfLines={1} style={{ flex: 1, color: '#fff', fontSize: 12.5, fontFamily: F.display }}>{label}</Text>
         {count != null && <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '800' }}>{count}</Text>}
@@ -71,6 +77,9 @@ export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { 
   const [tab, setTab] = useState<Tab | 'All'>(allFirst ? 'All' : 'Types');
   const [open, setOpen] = useState<Group | null>(null);
   const [making, setMaking] = useState(false);
+  /** "Pick several": tap tiles to choose categories, then see all their dishes together (Indian and Chinese, say) */
+  const [multi, setMulti] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   const hasStock = (r: Recipe) => !!(photoFor(r.id) || r.imageUrl);
   const favs = new Set(state.favourites ?? []);
 
@@ -81,10 +90,24 @@ export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { 
   }
   const groups = tab === 'All' ? [] : groupsFor(tab, recipes, state);
   // keep an open category up to date (a photo or heart can change while it is open)
-  const live = open ? groups.find((g) => g.id === open.id) ?? open : null;
+  const chosen = groups.filter((g) => picked.includes(g.id));
+  const together = (): Group => {
+    const seen = new Set<string>();
+    const list = chosen.flatMap((g) => g.recipes).filter((r) => !seen.has(r.id) && !!seen.add(r.id)).sort((a, b) => a.name.localeCompare(b.name));
+    return { id: '+', title: chosen.map((g) => g.title).join(' + '), emoji: '', recipes: list };
+  };
+  const live = open ? (open.id === '+' ? together() : groups.find((g) => g.id === open.id) ?? open) : null;
+  const pickTab = (t: Tab | 'All') => { setTab(t); setPicked([]); };
   return (
     <View>
-      <Row style={{ marginTop: 12, gap: 6 }}>{(allFirst ? ['All' as const, ...TABS] : TABS).map((t) => <Chip key={t} label={t} selected={tab === t} onPress={() => setTab(t)} />)}</Row>
+      <Row style={{ marginTop: 12, gap: 6 }}>{(allFirst ? ['All' as const, ...TABS] : TABS).map((t) => <Chip key={t} label={t} selected={tab === t} onPress={() => pickTab(t)} />)}</Row>
+      {tab !== 'All' && groups.length > 1 && (
+        <Row style={{ marginTop: 10, gap: 8 }}>
+          <Chip icon={multi ? 'checkbox' : 'checkbox-outline'} label="Pick several" selected={multi} onPress={() => { setMulti(!multi); setPicked([]); }} />
+          {multi && !chosen.length && <Text style={{ color: C.muted, fontSize: 13 }}>Tap the ones you want</Text>}
+          {multi && chosen.length > 0 && <Button small icon="grid-outline" label={`Show ${together().recipes.length} dishes`} onPress={() => setOpen(together())} />}
+        </Row>
+      )}
       {tab === 'All' && (
         <TileGrid>{(size) => recipes.map((r) => <Tile key={r.id} recipe={r} size={size} label={r.name} heart={favs.has(r.id)} a11y={`Open ${r.name}`} onPress={() => onOpen(r)} />)}</TileGrid>
       )}
@@ -99,11 +122,13 @@ export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { 
       <TileGrid>
         {(size) => groups.map((g, i) => {
           const cover = coverOf(g, state, hasStock);
-          return !cover ? <EmptyTile key={g.id} group={g} size={size} bar={i} onPress={() => setOpen(g)} /> : (
-          <Tile key={g.id} bar={i} recipe={cover} size={size} label={g.title} count={g.recipes.length} a11y={`${g.title}, ${g.recipes.length} recipes`} onPress={() => setOpen(g)} />
+          const tap = () => multi ? setPicked((p) => p.includes(g.id) ? p.filter((x) => x !== g.id) : [...p, g.id]) : setOpen(g);
+          return !cover ? <EmptyTile key={g.id} group={g} size={size} bar={i} onPress={tap} /> : (
+          <Tile key={g.id} bar={i} recipe={cover} size={size} label={g.title} count={g.recipes.length} a11y={`${g.title}, ${g.recipes.length} recipes`} onPress={tap} picked={multi ? picked.includes(g.id) : undefined} />
           );
         })}
       </TileGrid>
+
       {making && <NewCategory onClose={() => setMaking(false)} onDone={() => setMaking(false)} />}
       {live && (
         <Sheet title={`${live.title} (${live.recipes.length})`} onClose={() => setOpen(null)}>
@@ -111,7 +136,7 @@ export default function RecipeTiles({ recipes, searching, onOpen, allFirst }: { 
           <TileGrid>
             {(size) => live.recipes.map((r) => <Tile key={r.id} recipe={r} size={size} label={r.name} heart={favs.has(r.id)} a11y={`Open ${r.name}`} onPress={() => onOpen(r)} />)}
           </TileGrid>
-          {tab === 'Mine' && <CollectionTools id={live.id} onGone={() => setOpen(null)} />}
+          {tab === 'Mine' && live.id !== '+' && <CollectionTools id={live.id} onGone={() => setOpen(null)} />}
         </Sheet>
       )}
     </View>
