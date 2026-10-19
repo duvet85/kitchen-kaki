@@ -1,7 +1,7 @@
 import { cook, cookL } from '../cook';
 import { DishHistory } from './LearnCook';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
 import { recipeById } from '../data/recipes';
 import { ballpark, dishCost, money, roughMoney, shoppingDone, shoppingProgress, weekCost } from '../engine/grocery';
 import { CATALOGUE } from '../data/store';
@@ -552,32 +552,53 @@ function DishCard({ recipe: r, dish, weekIds, spiceCap, onSwap, onRemove, onOpen
   );
 }
 
-/** "Week starts": the family's shopping day can be any day, so a week can start on any of the dates around the usual one. */
+/** The week's dates: a 7-day week from any start date (for example the shopping day), picked on the phone's own calendar. */
 function WeekStart() {
   const { state, update } = useApp();
   const plan = state.plan!;
   const start = startDateOf(plan);
-  // the choices stay put while one is picked, so the row doesn't jump
-  const [base] = useState(start);
+  const end = addDays(start, 6);
   const [open, setOpen] = useState(false);
-  const days = [-3, -2, -1, 0, 1, 2, 3].map((n) => addDays(base, n));
+  const setStart = (d: string) => { if (/^\d{4}-\d{2}-\d{2}$/.test(d)) update((st) => (st.plan ? { ...st, plan: withStart(st.plan, d) } : st)); };
   const cooked = plan.cooked.length > 0;
   return (
     <View style={{ marginTop: 10, maxWidth: 560 }}>
-      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`Week runs ${fmtDay(start)} to ${fmtDay(addDays(start, 6))}. Change the start`}
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`Week runs ${fmtDay(start)} to ${fmtDay(end)}. Change the dates`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 }}>
         <Icon name="calendar-outline" size={16} color={C.brand} />
-        <Text style={{ fontWeight: '700' }}>{fmtDay(start)} to {fmtDay(addDays(start, 6))}</Text>
+        <Text style={{ fontWeight: '700' }}>{fmtDay(start)} to {fmtDay(end)}</Text>
         <Text style={{ color: C.brand, fontWeight: '700' }}>{open ? 'Done' : 'Change'}</Text>
       </Pressable>
       {open && (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Pick the day the week begins, for example your shopping day. The week ends 6 days later, the day before the next week starts. The dishes keep their order: the first day's dishes move to the new first day.</Text>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>A week is always 7 days. Pick the first day (for example your shopping day) or the last day, and the other one follows. The dishes keep their order: the first day's dishes move to the new first day.</Text>
+          {Platform.OS === 'web' ? (
+            <Row style={{ gap: 12, flexWrap: 'nowrap' }}>
+              <DateField label="Starts" value={start} onChange={setStart} />
+              <DateField label="Ends" value={end} onChange={(d) => setStart(addDays(d, -6))} />
+            </Row>
+          ) : (
+            <Row>{Array.from({ length: 14 }, (_, i) => addDays(start, i - 3)).map((d) => <Chip key={d} label={fmtDay(d)} selected={d === start} onPress={() => setStart(d)} />)}</Row>
+          )}
           <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Cooking days: {planDayName(plan, 0)} to {planDayName(plan, state.settings.daysPerWeek - 1)} ({state.settings.daysPerWeek} days). To cook fewer or more days, change "Cooking days per week" in Menu settings below.</Text>
-          <Row>{days.map((d) => <Chip key={d} label={fmtDay(d)} selected={d === start} onPress={() => update((st) => (st.plan ? { ...st, plan: withStart(st.plan, d) } : st))} />)}</Row>
           {plan.status === 'confirmed' && <Text style={{ color: C.amber, fontSize: 12, lineHeight: 17 }}>This menu is already sent: your {cookL()} sees the new days and dates straight away{cooked ? ', and dishes already cooked stay ticked' : ''}.</Text>}
         </View>
       )}
+    </View>
+  );
+}
+
+/** A date box that opens the phone's own calendar (web build). Shows the weekday under it, which the box itself doesn't. */
+function DateField({ label, value, onChange }: { label: string; value: string; onChange: (d: string) => void }) {
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text style={{ fontSize: 12, fontFamily: F.xbold, letterSpacing: 1, color: C.muted }}>{label.toUpperCase()}</Text>
+      {React.createElement('input', {
+        type: 'date', value, 'aria-label': `Week ${label.toLowerCase()}`,
+        onChange: (e: { target: { value: string } }) => onChange(e.target.value),
+        style: { fontSize: 16, padding: 10, borderRadius: 12, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', minHeight: 44 },
+      })}
+      <Text style={{ color: C.muted, fontSize: 13 }}>{DAY_NAMES[weekdayOf(value)]}</Text>
     </View>
   );
 }
