@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { MEALS, mealFor } from '../data/categories';
+import { MEALS, TYPES, mealFor, typeFor } from '../data/categories';
 import { useApp } from '../state';
 import { Collection, Recipe } from '../types';
 import { Button, C, Chip, F, Label, Row, Text } from '../ui';
@@ -45,6 +45,12 @@ export function CategorySheet({ recipe: r, onClose }: { recipe: Recipe; onClose:
   return (
     <Sheet title="Categories" onClose={onClose}>
       <Text style={{ color: C.muted, marginTop: 4, lineHeight: 20 }}>{r.name}</Text>
+      <Label>Shows under</Label>
+      <Row>
+        {TYPES.map((t) => <Chip key={t.id} label={`${t.emoji} ${t.title}`} selected={typeFor(r, state) === t.id}
+          onPress={() => update((st) => { const o = { ...(st.typeOf ?? {}) }; if (t.id === r.protein) delete o[r.id]; else o[r.id] = t.id; return { ...st, typeOf: o }; })} />)}
+      </Row>
+      <Text style={{ color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 17 }}>Which group the dish shows under in the recipe book (Types tab). Soups stay under Soups.</Text>
       <Label>Meal type</Label>
       <Row>
         <Chip label="Dinner dish" selected={!meal} onPress={() => setMeal(undefined)} />

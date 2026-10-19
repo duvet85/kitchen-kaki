@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { CATALOGUE } from '../data/store';
-import { RECIPES } from '../data/recipes';
+import { RECIPES, recipeById } from '../data/recipes';
 import DishPhoto from '../DishPhoto';
 import { useAi } from '../ai/AiProvider';
 import { ALLERGENS, CUISINES, Draft, PROTEINS, catalogueLines, cleanUrl, firstUrl, instagramAccount, isInstagram, normaliseDraft, youtubeIn, youtubeUrl } from '../ai/draft';
@@ -59,9 +59,9 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
   const chooseView = (v: 'tiles' | 'list') => { setView(v); AsyncStorage.setItem(VIEW_KEY, v).catch(() => undefined); };
   const inPlan = new Set(state.plan?.dishes.map((d) => d.recipeId));
   const term = q.trim().toLowerCase();
-  const rows = useMemo(() => [...RECIPES].filter((r) => !r.sickDay && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
-    .sort((a, b) => Number(!!b.custom) - Number(!!a.custom) || a.name.localeCompare(b.name)), [term, state.customRecipes]);
-  const remove = (r: Recipe) => update((st) => ({ ...st, customRecipes: (st.customRecipes ?? []).filter((x) => x.id !== r.id) }));
+  const hidden = state.hiddenRecipes ?? [];
+  const rows = useMemo(() => [...RECIPES].filter((r) => !r.sickDay && !hidden.includes(r.id) && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
+    .sort((a, b) => Number(!!b.custom) - Number(!!a.custom) || a.name.localeCompare(b.name)), [term, state.customRecipes, state.hiddenRecipes]);
 
   return (
     <Sheet title="Recipe book" onClose={onClose}>
@@ -107,12 +107,20 @@ export function RecipeBookSheet({ onClose }: { onClose: () => void }) {
               {web && r.imported && r.sourceUrl && !isInstagram(r.sourceUrl) && <Button small kind="ghost" icon="refresh" label="Refresh from source" onPress={() => setImporting({ url: r.sourceUrl, refresh: r })} />}
               {inPlan.has(r.id)
                 ? <Text style={{ color: C.muted, fontSize: 12 }}>On this week's menu, so it can't be removed yet</Text>
-                : <Button small kind="danger" icon="trash-outline" label="Remove" onPress={() => remove(r)} />}
+                : <Button small kind="danger" icon="trash-outline" label="Delete" onPress={() => setViewing(r)} />}
             </Row>
           )}
         </View>
       ))}
       {!rows.length && <Text style={{ color: C.muted, marginTop: 10 }}>Nothing matches “{q}”.</Text>}
+      {hidden.length > 0 && !term && (
+        <View style={{ marginTop: 18, paddingTop: 12, borderTopWidth: 1, borderColor: C.line }}>
+          <Text style={{ color: C.muted, fontSize: 13 }}>Deleted: {hidden.map((id) => recipeById(id)?.name).filter(Boolean).join(', ')}</Text>
+          <View style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+            <Button small kind="ghost" icon="refresh" label={`Bring back ${hidden.length === 1 ? 'this recipe' : `these ${hidden.length} recipes`}`} onPress={() => update((st) => ({ ...st, hiddenRecipes: [] }))} />
+          </View>
+        </View>
+      )}
       {browsing && <BrowseSites onClose={() => setBrowsing(false)} />}
       {searching && <SearchRecipes onClose={() => setSearching(false)} onPick={(sd) => { setSearching(false); setSeed(sd); }} onDraft={(draft) => { setSearching(false); setImported({ draft }); }} onDraftByName={(q) => { setSearching(false); setSeed({ text: q, auto: false }); }} />}
       {importing && (

@@ -33,6 +33,7 @@ export function eligibleRecipes(state: AppState, withSickDay = false) {
   const dropped: Recipe[] = [];
   for (const r of RECIPES) {
     if (r.sickDay && !withSickDay) continue; // only Ask Kaki offers these
+    if (state.hiddenRecipes?.includes(r.id)) continue; // deleted by the family
     if (mealFor(r, state)) continue; // breakfast, drinks and desserts are never planned as dinner
     const reasons = exclusionReasons(r, state.members);
     if (reasons.length) excluded.push({ recipe: r, reasons });
@@ -393,7 +394,7 @@ export const mealsOn = (state: Pick<AppState, 'settings'>): PlannedMealKind[] =>
  */
 export function mealPool(state: AppState, kind: PlannedMealKind): Recipe[] {
   const rule = spiceRule(state);
-  return RECIPES.filter((r) => mealFor(r, state) === kind && !exclusionReasons(r, state.members).length
+  return RECIPES.filter((r) => mealFor(r, state) === kind && !state.hiddenRecipes?.includes(r.id) && !exclusionReasons(r, state.members).length
     && (state.ratings[r.id] ?? 5) >= DROP_BELOW && !(rule.active && rule.isHot(r)));
 }
 

@@ -8,7 +8,7 @@ import { PHOTOS } from '../data/photos';
 import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
 import { DAY_NAMES, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
-import { PlannedDish, Recipe } from '../types';
+import { AppState, PlannedDish, Recipe } from '../types';
 import { PotRating } from './PotRating';
 import { Button, C, Chip, F, Icon, IconButton, Label, Notice, Row, Text, chillies, pots } from '../ui';
 import { Sheet, cap } from './FamilyScreen';
@@ -35,7 +35,7 @@ export function StarsRow({ recipe }: { recipe: Recipe }) {
 export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: () => void }) {
   const [showSteps, setShowSteps] = useState(false);
   const [cats, setCats] = useState(false);
-  const { state, update } = useApp();
+  const { state, update, family } = useApp();
   const meal = mealFor(r, state);
   const mine2 = (state.collections ?? []).filter((c) => c.ids.includes(r.id));
   const mine = state.userPhotos?.[r.id];
@@ -122,7 +122,51 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
           <Text style={{ lineHeight: 21 }}>{r.notes}</Text>
         </View>
       ) : null}
+      {family?.role !== 'helper' && <DeleteRecipe recipe={r} onDone={onClose} />}
     </Sheet>
+  );
+}
+
+/** Dish ids on the sent menu or next week's draft (breakfast and lunch too): these can't be deleted until they're off it. */
+const onMenus = (st: AppState) => new Set([st.plan, st.nextPlan].flatMap((p) => p ? [...p.dishes, ...(p.meals ?? [])].map((d) => d.recipeId) : []));
+
+/** Delete a recipe the family doesn't want, after a confirm step. Their own recipes are removed; app recipes are hidden (and can be brought back). */
+export function deleteRecipe(st: AppState, r: Recipe): AppState {
+  const out: AppState = {
+    ...st,
+    favourites: (st.favourites ?? []).filter((x) => x !== r.id),
+    collections: (st.collections ?? []).map((c) => c.ids.includes(r.id) ? { ...c, ids: c.ids.filter((x) => x !== r.id) } : c),
+  };
+  return r.custom
+    ? { ...out, customRecipes: (st.customRecipes ?? []).filter((x) => x.id !== r.id) }
+    : { ...out, hiddenRecipes: [...new Set([...(st.hiddenRecipes ?? []), r.id])] };
+}
+
+function DeleteRecipe({ recipe: r, onDone }: { recipe: Recipe; onDone: () => void }) {
+  const { state, update } = useApp();
+  const [asking, setAsking] = useState(false);
+  if (state.hiddenRecipes?.includes(r.id)) return null;
+  const busy = onMenus(state).has(r.id);
+  return (
+    <View style={{ marginTop: 22, paddingTop: 14, borderTopWidth: 1, borderColor: C.line }}>
+      {busy ? (
+        <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19 }}>This dish is on a menu now. Swap it off the menu first if you want to delete it.</Text>
+      ) : !asking ? (
+        <Button kind="danger" small icon="trash-outline" label="Delete this recipe" onPress={() => setAsking(true)} />
+      ) : (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontWeight: '700' }}>Delete {r.name}?</Text>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19 }}>
+            {r.custom
+              ? 'It goes from your recipe book and is never put on a menu again. This can\'t be undone, so you would need to add it again.'
+              : 'It goes from your recipe book and is never put on a menu again. You can bring it back later from the bottom of the Home tab.'}
+            {' '}Its rating and past menus are kept.
+          </Text>
+          <Button kind="danger" icon="trash-outline" label="Yes, delete it" onPress={() => { update((st) => deleteRecipe(st, r)); onDone(); }} />
+          <Button kind="quiet" label="Cancel" onPress={() => setAsking(false)} />
+        </View>
+      )}
+    </View>
   );
 }
 

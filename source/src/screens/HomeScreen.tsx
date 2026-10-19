@@ -14,7 +14,7 @@ import ScanRecipe from './ScanRecipe';
 
 /** First page: today's dishes, then the whole recipe book as tiles of food photos. */
 export default function HomeScreen() {
-  const { state, family } = useApp();
+  const { state, family, update } = useApp();
   const [q, setQ] = useState('');
   const [viewing, setViewing] = useState<Recipe | null>(null);
   const [book, setBook] = useState(false);
@@ -33,7 +33,7 @@ export default function HomeScreen() {
     return v;
   });
   const term = q.trim().toLowerCase();
-  const rows = RECIPES.filter((r) => !r.sickDay && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
+  const rows = RECIPES.filter((r) => !r.sickDay && !state.hiddenRecipes?.includes(r.id) && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
     .sort((a, b) => a.name.localeCompare(b.name));
   const today = (new Date().getDay() + 6) % 7;
   const todays = (state.plan?.dishes ?? []).filter((d) => d.day === today).map((d) => recipeById(d.recipeId)).filter((r): r is Recipe => !!r);
@@ -81,6 +81,14 @@ export default function HomeScreen() {
         )}
       </View>
       {rows.length > 0 ? <RecipeTiles allFirst recipes={rows} searching={term.length > 0} onOpen={setViewing} /> : <Text style={{ color: C.muted, marginTop: 14 }}>Nothing matches “{q}”.</Text>}
+      {(state.hiddenRecipes ?? []).length > 0 && !term && family?.role !== 'helper' && (
+        <View style={{ marginTop: 18, paddingTop: 12, borderTopWidth: 1, borderColor: C.line }}>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19 }}>Deleted recipes: {state.hiddenRecipes!.map((id) => recipeById(id)?.name).filter(Boolean).join(', ')}</Text>
+          <View style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+            <Button small kind="ghost" icon="refresh" label={state.hiddenRecipes!.length === 1 ? 'Bring it back' : `Bring all ${state.hiddenRecipes!.length} back`} onPress={() => update((st) => ({ ...st, hiddenRecipes: [] }))} />
+          </View>
+        </View>
+      )}
 
       {viewing && <DishDetail recipe={viewing} onClose={() => setViewing(null)} />}
       {adding && <AddRecipeFlow start={adding} onClose={() => setAdding(null)} />}

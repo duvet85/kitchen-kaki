@@ -224,6 +224,10 @@ export interface AppState {
   recognition?: { on: boolean; helper: string; hidePoints?: boolean; seen?: string[] };
   /** next week's menu while the owner drafts it; the cook keeps working from `plan` (the sent week) until this one is sent */
   nextPlan?: WeekPlan | null;
+  /** app recipes the family deleted: gone from the recipe book and never planned (their own recipes are removed outright) */
+  hiddenRecipes?: string[];
+  /** the recipe book group the family chose for a dish (Chicken, Pork, Vegetables…), over the recipe's own main ingredient */
+  typeOf?: Record<string, Protein>;
   /** the weeks before the current one, as they were when the next week was sent, newest last, so a sent week can be taken back */
   pastWeeks?: WeekSnapshot[];
 }
