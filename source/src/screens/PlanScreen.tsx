@@ -564,15 +564,16 @@ function WeekStart() {
   const cooked = plan.cooked.length > 0;
   return (
     <View style={{ marginTop: 10, maxWidth: 560 }}>
-      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`Week starts ${fmtDay(start)}. Change`}
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`Week runs ${fmtDay(start)} to ${fmtDay(addDays(start, 6))}. Change the start`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 }}>
         <Icon name="calendar-outline" size={16} color={C.brand} />
-        <Text style={{ fontWeight: '700' }}>Week starts {fmtDay(start)}</Text>
+        <Text style={{ fontWeight: '700' }}>{fmtDay(start)} to {fmtDay(addDays(start, 6))}</Text>
         <Text style={{ color: C.brand, fontWeight: '700' }}>{open ? 'Done' : 'Change'}</Text>
       </Pressable>
       {open && (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Pick the day the week begins, for example your shopping day. The dishes keep their order: the first day's dishes move to the new first day.</Text>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Pick the day the week begins, for example your shopping day. The week ends 6 days later, the day before the next week starts. The dishes keep their order: the first day's dishes move to the new first day.</Text>
+          <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>Cooking days: {planDayName(plan, 0)} to {planDayName(plan, state.settings.daysPerWeek - 1)} ({state.settings.daysPerWeek} days). To cook fewer or more days, change "Cooking days per week" in Menu settings below.</Text>
           <Row>{days.map((d) => <Chip key={d} label={fmtDay(d)} selected={d === start} onPress={() => update((st) => (st.plan ? { ...st, plan: withStart(st.plan, d) } : st))} />)}</Row>
           {plan.status === 'confirmed' && <Text style={{ color: C.amber, fontSize: 12, lineHeight: 17 }}>This menu is already sent: your {cookL()} sees the new days and dates straight away{cooked ? ', and dishes already cooked stay ticked' : ''}.</Text>}
         </View>
