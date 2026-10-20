@@ -1,7 +1,9 @@
 import { cook, cookL, langOptions } from '../cook';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
-import { CATALOGUE } from '../data/store';
+import { CATALOGUE, hasPaidPrice, paidTimes, priceOf } from '../data/store';
+import { addPrices, removePrice } from '../engine/prices';
+import PricesSheet from './PricesSheet';
 import { recipeById } from '../data/recipes';
 import { recipeText, ingredientLabel, fullyTranslated, itemNames } from '../ai/text';
 import GeminiTranslate from '../ai/GeminiTranslate';
@@ -20,6 +22,7 @@ import { PANTRY } from '../engine/grocery';
 import { Bar, Button, C, Card, Chip, F, Grid, Icon, Label, Notice, P, Row, Screen, Text, Thumb, chillies, useLayout } from '../ui';
 import { DishHistory } from './LearnCook';
 import CookingMode, { TimerTray, useTimerTick } from './CookingMode';
+import ScanReceipt from './ScanReceipt';
 
 const AISLES = ['Meat & Seafood', 'Fruit & Veg', 'Chilled', 'Pantry'] as const;
 const AISLE_ICON = { 'Meat & Seafood': 'fish-outline', 'Fruit & Veg': 'nutrition-outline', Chilled: 'snow-outline', Pantry: 'cube-outline' } as const;
@@ -212,6 +215,16 @@ function Shopping({ lang }: { lang: Lang }) {
   const { state, update, family } = useApp();
   const [picking, setPicking] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ item: string; text: string } | null>(null);
+  // the item whose price is being typed in (what was paid for its pack)
+  const [pricing, setPricing] = useState<{ item: string; text: string } | null>(null);
+  const [receipt, setReceipt] = useState(false);
+  const [allPrices, setAllPrices] = useState(false);
+  const savePrice = (item: string, text: string) => {
+    const n = Number(text.replace(/[^0-9.]/g, ''));
+    // each price paid is added to the item's record (the cost uses the average of the latest few); empty clears them
+    update((st) => ({ ...st, prices: !text.trim() ? removePrice(st.prices, item) : Number.isFinite(n) && n >= 0 ? addPrices(st.prices, [{ item, price: n, by: family?.myName, via: 'typed' }]) : st.prices }));
+    setPricing(null);
+  };
   const names = state.shopNames ?? {};
   const rename = (item: string, text: string) => {
     const v = text.trim().slice(0, 60);
@@ -225,7 +238,8 @@ function Shopping({ lang }: { lang: Lang }) {
   const lines = shoppingList(planRecipeIds(plan));
   const fresh = lines.filter((l) => !l.pantry);
   const pantry = lines.filter((l) => l.pantry);
-  const total = fresh.reduce((a, l) => a + l.info.price, 0);
+  const total = fresh.reduce((a, l) => a + priceOf(l.item), 0);
+  const paidCount = fresh.filter((l) => hasPaidPrice(l.item)).length;
   const { isTablet, cols } = useLayout();
   const extras = state.extras ?? [];
   const { got: boughtCount, total: toGet } = shoppingProgress(state);
@@ -251,7 +265,7 @@ function Shopping({ lang }: { lang: Lang }) {
     const done = state.bought.includes(l.item) || skipped;
     const showPicker = picking === l.item && !swap && !state.bought.includes(l.item);
     return (
-      <Pressable key={l.item} onPress={() => !skipped && renaming?.item !== l.item && toggle(l.item)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
+      <Pressable key={l.item} onPress={() => !skipped && renaming?.item !== l.item && pricing?.item !== l.item && toggle(l.item)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderColor: C.line }}>
         <Row style={{ flexWrap: 'nowrap', alignItems: 'flex-start', gap: 10 }}>
           <Icon name={skipped ? 'remove-circle-outline' : done ? 'checkbox' : 'square-outline'} size={22} color={skipped ? C.faint : done ? C.brand : C.faint} />
           <View style={{ flex: 1 }}>
@@ -275,8 +289,28 @@ function Shopping({ lang }: { lang: Lang }) {
                 </Row>
               )}
               {(state.lateItems ?? []).includes(l.item) && !done && <View style={{ marginRight: 8 }}><Chip tone="new" icon="sparkles" label={t('newItem', lang)} /></View>}
-              <Text style={{ fontWeight: '600', color: done ? C.faint : C.ink }}>{roughMoney(l.info.price)}</Text>
+              <Pressable onPress={() => setPricing(pricing?.item === l.item ? null : { item: l.item, text: '' })} hitSlop={8} accessibilityRole="button"
+                accessibilityLabel={`${t('whatPaid', lang)} ${l.info.name}`} style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontWeight: '700', color: done ? C.faint : C.ink, textDecorationLine: 'underline', textDecorationStyle: 'dotted' }}>{hasPaidPrice(l.item) ? `$${priceOf(l.item).toFixed(2)}` : roughMoney(priceOf(l.item))}</Text>
+                <Text style={{ fontSize: 10, color: hasPaidPrice(l.item) ? C.green : C.faint, fontWeight: '700' }}>{hasPaidPrice(l.item) ? t('paidPrice', lang) : t('samplePrice', lang)}</Text>
+              </Pressable>
             </Row>
+            {pricing?.item === l.item && (
+              <View style={{ marginTop: 8, gap: 6 }}>
+                <Text style={{ color: C.muted, fontSize: 13 }}>{t('whatPaid', lang)} ({qtyLabel(l.info.pack, lang)})</Text>
+                <Row style={{ flexWrap: 'nowrap', gap: 6, alignItems: 'center' }}>
+                  <Text style={{ fontWeight: '700', fontSize: 16 }}>$</Text>
+                  <TextInput value={pricing.text} onChangeText={(text) => setPricing({ item: l.item, text })} autoFocus keyboardType="decimal-pad" inputMode="decimal" placeholder={priceOf(l.item).toFixed(2)} maxLength={7}
+                    onSubmitEditing={() => savePrice(l.item, pricing.text)} returnKeyType="done" accessibilityLabel={`Price paid for ${l.info.name}`}
+                    style={{ flex: 1, borderWidth: 1, borderColor: C.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, fontSize: 16, color: C.ink, backgroundColor: '#fff' }} />
+                </Row>
+                <Row style={{ gap: 6 }}>
+                  <Chip tone="good" icon="checkmark" label={t('savePrice', lang)} onPress={() => savePrice(l.item, pricing.text)} />
+                  {hasPaidPrice(l.item) && <Chip icon="refresh" label={paidTimes(l.item) > 1 ? t('clearPrices', lang) : t('useSample', lang)} onPress={() => savePrice(l.item, '')} />}
+                  <Chip label={t('cancel', lang)} onPress={() => setPricing(null)} />
+                </Row>
+              </View>
+            )}
             <Text style={{ color: C.muted, fontSize: 12, marginTop: 1 }}>{names[l.item] ? `(was ${itemTr[l.item] ?? l.info.name}) · ` : ''}{qtyLabel(l.info.pack, lang)} · {l.uses.map((u) => dishTr[u.dish] ?? u.dish).join(', ')}</Text>
             {swap && (
               <Row style={{ marginTop: 6, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
@@ -312,10 +346,17 @@ function Shopping({ lang }: { lang: Lang }) {
 
   return (
     <>
+      {allPrices && <PricesSheet recipeIds={planRecipeIds(plan)} lang={lang} onClose={() => setAllPrices(false)} />}
+      {receipt && <ScanReceipt items={fresh.map((l) => l.item)} lang={lang} onClose={() => setReceipt(false)} />}
       <Card style={{ backgroundColor: C.brand, ...(isTablet ? { maxWidth: 520 } : {}) }}>
         <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>{t('estTotal', lang).toUpperCase()}</Text>
         <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 30, letterSpacing: -1 }}>{ballpark(total)}</Text>
         <Text style={{ color: '#E4E8CF', fontSize: 13, marginBottom: 6 }}>{boughtCount}/{toGet} {t('bought', lang)}</Text>
+        <Text style={{ color: '#E4E8CF', fontSize: 12, marginBottom: 8, lineHeight: 17 }}>{t('pricesHint', lang, { n: paidCount, m: fresh.length })}</Text>
+        <Row style={{ gap: 8, marginBottom: 12 }}>
+          <Chip icon="receipt-outline" label={t('scanReceipt', lang)} onPress={() => setReceipt(true)} />
+          <Chip icon="pricetags-outline" label={t('realPrices', lang)} onPress={() => setAllPrices(true)} />
+        </Row>
         <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)', marginBottom: 12, overflow: 'hidden' }}>
           <View style={{ width: `${toGet ? (boughtCount / toGet) * 100 : 0}%`, height: '100%', backgroundColor: '#fff' }} />
         </View>

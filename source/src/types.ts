@@ -190,6 +190,9 @@ export interface AppState {
   shopSwaps?: Record<string, ShopSwap>;
   /** shopping list names the family typed over the app's own ("Whole seabass" for "Seabass fillet"), by shop item key; synced so the cook sees them */
   shopNames?: Record<string, string>;
+  /** what the family actually paid for an item's pack, by shop item key; used for every cost instead of the sample price. Kept across weeks. */
+  /** Real prices the family paid, per shop item, built up over the weeks. */
+  prices?: Record<string, PriceRecord>;
   /** days of this week's menu that fruit was served (tracked apart from the diet score) */
   fruitDays?: number[];
   /** shop items needed because the menu changed after it was sent (catalogue keys); shown as NEW to the helper until bought */
@@ -375,3 +378,8 @@ export interface RecipeSites {
   /** whether the window opened the site last time, by host */
   works?: Record<string, 'ok' | 'fail'>;
 }
+
+/** One price paid for an item's pack. */
+export interface PriceEntry { price: number; at: string; by?: string; via?: 'typed' | 'receipt' }
+/** An item's real price: `price` is the average of the latest few paid (what costs use); `history` is every price paid, oldest first. */
+export interface PriceRecord { price: number; at: string; by?: string; history?: PriceEntry[] }

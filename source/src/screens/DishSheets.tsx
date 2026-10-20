@@ -5,7 +5,7 @@ import { recipeById } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
 import DishPhoto from '../DishPhoto';
 import { PHOTOS } from '../data/photos';
-import { dishCost, groceryFit, roughMoney } from '../engine/grocery';
+import { dishCost, dishCostInfo, dishMoney, groceryFit, roughMoney } from '../engine/grocery';
 import { planDayName, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
 import { AppState, PlannedDish, Recipe } from '../types';
@@ -65,7 +65,7 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
         )}
         <PhotoControls recipe={r} />
       </View>
-      <Text style={{ color: C.muted, fontSize: 14 }}>{cap(r.cuisine)} · {r.minutes} min · {chillies(r.spice)} · {roughMoney(dishCost(r))}</Text>
+      <Text style={{ color: C.muted, fontSize: 14 }}>{cap(r.cuisine)} · {r.minutes} min · {chillies(r.spice)} · {dishMoney(r)}{(() => { const d = dishCostInfo(r); return d.paid ? ` (real prices for ${d.paid} of ${d.items} ingredients)` : ''; })()}</Text>
       <Row style={{ marginTop: 8 }}>
         <Chip tone={fav ? 'brand' : 'plain'} icon={fav ? 'heart' : 'heart-outline'} label={fav ? 'In your favourites' : 'Add to favourites'} selected={fav}
           onPress={() => update((st) => ({ ...st, favourites: fav ? (st.favourites ?? []).filter((x) => x !== r.id) : [...(st.favourites ?? []), r.id] }))} />

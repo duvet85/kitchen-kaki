@@ -1,3 +1,5 @@
+import { entriesOf, estimateOf } from '../engine/prices';
+import type { PriceRecord } from '../types';
 /**
  * MOCK supermarket catalogue. It is NOT connected to NTUC FairPrice or any shop and nothing in it is verified:
  * the prices are made up and only feed the rough "about $" costs. Whether a shop has an item is told by the helper
@@ -6,6 +8,27 @@
  * grocery-aggregator API (FairPrice has no public API, so this needs a partner
  * agreement or a different data source).
  */
+let paid: Record<string, number> = {};
+let paidCount: Record<string, number> = {};
+let paidFrom: unknown;
+/** Uses the prices the family entered (what they paid for the pack) for every cost. Safe to call on every render. */
+export function applyPrices(prices: Record<string, PriceRecord> | undefined) {
+  if (paidFrom === prices) return;
+  paidFrom = prices;
+  paid = {}; paidCount = {};
+  for (const [k, v] of Object.entries(prices ?? {})) {
+    const list = entriesOf(v);
+    if (!list.length) continue;
+    paid[k] = estimateOf(list);
+    paidCount[k] = list.length;
+  }
+}
+/** How many real prices the family has recorded for an item. */
+export const paidTimes = (item: string) => paidCount[item] ?? 0;
+/** The price of an item's pack: what the family paid, else the sample price. */
+export const priceOf = (item: string) => paid[item] ?? CATALOGUE[item]?.price ?? 0;
+export const hasPaidPrice = (item: string) => item in paid;
+
 export interface StoreItem {
   name: string;
   price: number;

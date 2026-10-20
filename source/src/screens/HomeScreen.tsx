@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Platform, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { RECIPES, recipeById } from '../data/recipes';
-import { DAY_NAMES, todayPlanDay } from '../engine/planner';
+import { DAY_NAMES, dateOfPlanDay, todayPlanDay, weekdayOfPlanDay } from '../engine/planner';
+import { shortDate } from '../i18n-units';
 import { useApp } from '../state';
 import { Recipe } from '../types';
 import { Button, C, Card, Chip, F, Icon, Row, Screen, Text } from '../ui';
@@ -35,37 +36,11 @@ export default function HomeScreen() {
   const term = q.trim().toLowerCase();
   const rows = RECIPES.filter((r) => !r.sickDay && !state.hiddenRecipes?.includes(r.id) && (!term || r.name.toLowerCase().includes(term) || r.cuisine.includes(term)))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const weekday = (new Date().getDay() + 6) % 7;
-  const today = todayPlanDay(state.plan);
-  const todays = (state.plan?.dishes ?? []).filter((d) => d.day === today).map((d) => recipeById(d.recipeId)).filter((r): r is Recipe => !!r);
-  const todayMeals = (['breakfast', 'lunch'] as const).map((k) => ({ k, m: state.plan?.meals?.find((x) => x.day === today && x.meal === k) })).filter((x) => x.m)
-    .map((x) => ({ label: x.k === 'breakfast' ? 'Breakfast' : 'Lunch', r: RECIPES.find((r) => r.id === x.m!.recipeId) })).filter((x): x is { label: string; r: Recipe } => !!x.r);
   const hello = family?.myName ? `Hello ${family.myName}` : 'Hello';
 
   return (
     <Screen eyebrow={hello} title="What's cooking?" subtitle="Tap a tile to see the dishes. Open one for its photo, ingredients and steps.">
-      <View style={{ marginTop: 10, borderRadius: 28, backgroundColor: C.saffron, padding: 18, overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', right: -34, top: -34, width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.35)' }} />
-        <View style={{ position: 'absolute', right: 34, top: 30, width: 54, height: 54, borderRadius: 27, backgroundColor: C.accent }} />
-        <View style={{ position: 'absolute', right: 14, top: 74, width: 30, height: 30, borderRadius: 15, backgroundColor: C.sage }} />
-        <Text style={{ color: C.brandDeep, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1.2 }}>{DAY_NAMES[weekday].toUpperCase()}, TODAY</Text>
-        {todayMeals.length > 0 && (
-          <View style={{ marginTop: 6, gap: 2, paddingRight: 90 }}>
-            {todayMeals.map((x) => (
-              <Text key={x.label} accessibilityRole="button" onPress={() => setViewing(x.r)} style={{ color: C.brandDeep, fontFamily: F.semi, fontSize: 15 }}>{x.label}: {x.r.name}</Text>
-            ))}
-          </View>
-        )}
-        {todays.length ? (
-          <View style={{ marginTop: 6, gap: 4, paddingRight: 90 }}>
-            {todays.map((r) => (
-              <Text key={r.id} accessibilityRole="button" onPress={() => setViewing(r)} style={{ color: C.brandDeep, fontFamily: F.display, fontSize: 19 }}>{r.emoji} {r.name}</Text>
-            ))}
-          </View>
-        ) : (
-          <Text style={{ color: C.brandDeep, marginTop: 6, fontSize: 15, lineHeight: 21, paddingRight: 90, fontFamily: F.semi }}>No menu planned for today yet. Plan the week in the Menu tab.</Text>
-        )}
-      </View>
+      <DayCards onOpen={setViewing} />
 
       <TextInput value={q} onChangeText={setQ} placeholder="Search recipes or cuisines" placeholderTextColor={C.faint} accessibilityLabel="Search recipes"
         style={{ marginTop: 14, backgroundColor: C.card, borderWidth: 2, borderColor: C.line, borderRadius: 26, paddingHorizontal: 18, paddingVertical: 13, fontSize: 15, color: C.ink, fontFamily: F.medium }} />
@@ -98,5 +73,88 @@ export default function HomeScreen() {
       {sharing && <AddRecipeFlow start="browse" saveUrl={sharing} onClose={() => setSharing(null)} />}
       {book && <RecipeBookSheet onClose={() => setBook(false)} />}
     </Screen>
+  );
+}
+
+/** The day's menu as a yellow card. Swipe sideways for the other days of the week (today shows first); the dots show where you are. */
+function DayCards({ onOpen }: { onOpen: (r: Recipe) => void }) {
+  const { state } = useApp();
+  const plan = state.plan;
+  const today = plan ? todayPlanDay(plan) : 0;
+  const [width, setWidth] = useState(0);
+  const [at, setAt] = useState(today);
+  const ref = useRef<ScrollView>(null);
+  const placed = useRef(false);
+  // every page is as tall as the tallest day, so the dots stay right under the card
+  const [tall, setTall] = useState<Record<number, number>>({});
+  const maxH = Math.max(0, ...Object.values(tall));
+  const days = plan ? [0, 1, 2, 3, 4, 5, 6] : [today];
+  const go = (d: number) => { setAt(d); ref.current?.scrollTo({ x: d * width, animated: true }); };
+
+  const label = (d: number) => {
+    const weekday = plan ? weekdayOfPlanDay(plan, d) : (new Date().getDay() + 6) % 7;
+    const name = DAY_NAMES[weekday].toUpperCase();
+    const off = d - today;
+    if (off === 0) return `${name}, TODAY`;
+    if (off === 1) return `${name}, TOMORROW`;
+    if (off === -1) return `${name}, YESTERDAY`;
+    return plan ? `${name}, ${shortDate(dateOfPlanDay(plan, d), 'en').toUpperCase()}` : name;
+  };
+
+  const card = (d: number) => {
+    const dishes = (plan?.dishes ?? []).filter((x) => x.day === d).map((x) => recipeById(x.recipeId)).filter((r): r is Recipe => !!r);
+    const meals = (['breakfast', 'lunch'] as const).map((k) => ({ k, m: plan?.meals?.find((x) => x.day === d && x.meal === k) })).filter((x) => x.m)
+      .map((x) => ({ label: x.k === 'breakfast' ? 'Breakfast' : 'Lunch', r: RECIPES.find((r) => r.id === x.m!.recipeId) })).filter((x): x is { label: string; r: Recipe } => !!x.r);
+    return (
+      <View key={d} style={{ width: width || undefined }}>
+        <View style={{ borderRadius: 28, backgroundColor: C.saffron, padding: 18, overflow: 'hidden', minHeight: Math.max(150, maxH + 36) }}>
+          <View style={{ position: 'absolute', right: -34, top: -34, width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.35)' }} />
+          <View style={{ position: 'absolute', right: 34, top: 30, width: 54, height: 54, borderRadius: 27, backgroundColor: C.accent }} />
+          <View style={{ position: 'absolute', right: 14, top: 74, width: 30, height: 30, borderRadius: 15, backgroundColor: C.sage }} />
+          <View onLayout={(e) => { const h = Math.ceil(e.nativeEvent.layout.height); if (tall[d] !== h) setTall((t) => ({ ...t, [d]: h })); }}>
+          <Text style={{ color: C.brandDeep, fontSize: 12, fontFamily: F.xbold, letterSpacing: 1.2 }}>{label(d)}</Text>
+          {meals.length > 0 && (
+            <View style={{ marginTop: 6, gap: 2, paddingRight: 90 }}>
+              {meals.map((x) => (
+                <Text key={x.label} accessibilityRole="button" onPress={() => onOpen(x.r)} style={{ color: C.brandDeep, fontFamily: F.semi, fontSize: 15 }}>{x.label}: {x.r.name}</Text>
+              ))}
+            </View>
+          )}
+          {dishes.length ? (
+            <View style={{ marginTop: 6, gap: 4, paddingRight: 90 }}>
+              {dishes.map((r) => (
+                <Text key={r.id} accessibilityRole="button" onPress={() => onOpen(r)} style={{ color: C.brandDeep, fontFamily: F.display, fontSize: 19 }}>{r.emoji} {r.name}</Text>
+              ))}
+            </View>
+          ) : (
+            <Text style={{ color: C.brandDeep, marginTop: 6, fontSize: 15, lineHeight: 21, paddingRight: 90, fontFamily: F.semi }}>
+              {plan ? 'Nothing planned for this day.' : 'No menu planned for today yet. Plan the week in the Menu tab.'}
+            </Text>
+          )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  if (!plan) return <View style={{ marginTop: 10 }}>{card(today)}</View>;
+  return (
+    <View style={{ marginTop: 10 }} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
+      {width > 0 && (
+        <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} decelerationRate="fast" snapToInterval={width} snapToAlignment="start"
+          contentContainerStyle={{ alignItems: 'stretch' }} accessibilityLabel="This week's menu, one day at a time"
+          onContentSizeChange={() => { if (!placed.current) { placed.current = true; ref.current?.scrollTo({ x: today * width, animated: false }); } }}
+          onScroll={(e) => { const d = Math.round(e.nativeEvent.contentOffset.x / width); if (d !== at && d >= 0 && d < 7) setAt(d); }} scrollEventThrottle={50}>
+          {days.map(card)}
+        </ScrollView>
+      )}
+      <Row style={{ justifyContent: 'center', gap: 6, marginTop: 8 }}>
+        {days.map((d) => (
+          <Pressable key={d} onPress={() => go(d)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Show ${label(d).toLowerCase()}`} accessibilityState={{ selected: d === at }}>
+            <View style={{ width: d === at ? 18 : 7, height: 7, borderRadius: 4, backgroundColor: d === at ? C.brandDeep : d === today ? C.saffron : C.line }} />
+          </Pressable>
+        ))}
+      </Row>
+    </View>
   );
 }

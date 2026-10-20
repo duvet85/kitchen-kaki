@@ -1,9 +1,11 @@
+import { mergePrices } from './engine/prices';
 import { setCookLabel } from './cook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AppState as AppStateRN } from 'react-native';
 import { DEMO_STATE } from './data/demo';
 import { applyCustomRecipes } from './data/recipes';
+import { applyPrices } from './data/store';
 import { FamilyConfig, client, loadConfig, signedIn, stableJson } from './sync/family';
 import { AppState } from './types';
 import { mergeKitchenLog } from './engine/recognition';
@@ -41,6 +43,8 @@ export function mergeChanges(mine: AppState, was: AppState | null, theirs: AppSt
   const out: Record<string, unknown> = { ...theirs };
   const m = mine as unknown as Record<string, unknown>, w = was as unknown as Record<string, unknown>;
   for (const k of Object.keys(m)) if (stableJson(m[k]) !== stableJson(w[k])) out[k] = m[k];
+  // prices are added on several phones over the weeks: keep everyone's, not just the last phone's
+  if (stableJson(mine.prices) !== stableJson(was.prices) && stableJson(theirs.prices) !== stableJson(was.prices)) out.prices = mergePrices(mine.prices, was.prices, theirs.prices);
   return out as unknown as AppState;
 }
 
@@ -179,6 +183,7 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
   }, [state, family, sync]);
 
   applyCustomRecipes(state.customRecipes, state.customItems);
+  applyPrices(state.prices);
   return (
     <Ctx.Provider value={{ state, update: (fn) => setState(fn), reset: () => setState(DEMO_STATE), family, setFamily, sync }}>
       {children}

@@ -237,6 +237,9 @@ export const understandViaFamily = (cfg: FamilyConfig, text: string) =>
 
 /** Recipe draft through the same function. Only the dish text and the grocery list are sent. */
 /** "Scan a recipe": a photo or PDF (base64) read by Gemini; only what it shows is written up, steps are never made up. */
+export type RawReceipt = { shop?: string; date?: string; lines?: { text?: unknown; price?: unknown; item?: unknown }[] };
+export const receiptViaFamily = (cfg: FamilyConfig, file: string, mime: string, items: string[]) =>
+  callGemini<RawReceipt>(cfg, { mode: 'receipt', file, mime, items });
 export const scanViaFamily = (cfg: FamilyConfig, file: string, mime: string, catalogue: string[]) =>
   callGemini<import('../ai/draft').RawDraft & { captionMode?: boolean }>(cfg, { mode: 'draft', file, mime, catalogue });
 export const draftViaFamily = async (cfg: FamilyConfig, text: string, catalogue: string[], caption = false) => {
@@ -300,6 +303,9 @@ async function callGemini<T>(cfg: FamilyConfig, body: object): Promise<T> {
     ? 'The translate function in Supabase is an older version and cannot show websites in the app yet. Paste the new code into it and Deploy again, or open the site in a new tab.'
     : "Couldn't open that page here. Open it in a new tab instead.");
   if ((body as { mode?: string; file?: string }).mode === 'draft' && (body as { file?: string }).file && (status === 400 || code === 'bad_request')) throw new FamilyError('The translate function in Supabase is an older version and cannot read photos or PDFs yet. Paste the new code into it and Deploy again.');
+  if ((body as { mode?: string }).mode === 'receipt') throw new FamilyError(status === 400 || code === 'bad_request'
+    ? 'The translate function in Supabase is an older version and cannot read receipts yet.'
+    : "Couldn't read the receipt just now. Try again, or tap a price to type it in.");
   if ((body as { mode?: string }).mode === 'find') throw new FamilyError(status === 400 || code === 'bad_request' || code === 'no_key' || !code
     ? 'The translate function in Supabase is an older version and cannot search recipe websites yet. Paste the new code into it and Deploy again.'
     : "Couldn't search the recipe websites just now. Try again.");

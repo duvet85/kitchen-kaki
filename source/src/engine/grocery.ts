@@ -1,5 +1,5 @@
 import { recipeById } from '../data/recipes';
-import { CATALOGUE, StoreItem } from '../data/store';
+import { CATALOGUE, StoreItem, hasPaidPrice, priceOf } from '../data/store';
 import { AppState, Recipe } from '../types';
 
 /** Bottles, jars and dry goods that last for weeks; only bought when the kitchen runs out. */
@@ -39,16 +39,29 @@ export function dishCost(r: Recipe, weekIds: string[] = [r.id]): number {
   for (const ing of r.ingredients) {
     if (PANTRY.has(ing.item)) continue;
     const sharedBy = weekIds.filter((id) => recipeById(id).ingredients.some((i) => i.item === ing.item)).length || 1;
-    total += CATALOGUE[ing.item].price / sharedBy;
+    total += priceOf(ing.item) / sharedBy;
   }
   return total;
 }
 
+/** A dish's cost and how much of it comes from prices the family really paid (fresh ingredients only). */
+export function dishCostInfo(r: Recipe, weekIds: string[] = [r.id]) {
+  const fresh = [...new Set(r.ingredients.map((i) => i.item))].filter((k) => !PANTRY.has(k));
+  return { cost: dishCost(r, weekIds), paid: fresh.filter(hasPaidPrice).length, items: fresh.length };
+}
+
+/** "~$6" from sample prices, "$5.80" once every fresh ingredient has a real price. */
+export function dishMoney(r: Recipe, weekIds?: string[]) {
+  const d = dishCostInfo(r, weekIds);
+  return d.items && d.paid === d.items ? money(d.cost) : roughMoney(d.cost);
+}
+
 export function weekCost(recipeIds: string[]) {
   const lines = shoppingList(recipeIds);
-  const fresh = lines.filter((l) => !l.pantry).reduce((a, l) => a + l.info.price, 0);
-  const pantry = lines.filter((l) => l.pantry).reduce((a, l) => a + l.info.price, 0);
-  return { fresh, pantry };
+  const fresh = lines.filter((l) => !l.pantry).reduce((a, l) => a + priceOf(l.item), 0);
+  const pantry = lines.filter((l) => l.pantry).reduce((a, l) => a + priceOf(l.item), 0);
+  const paid = lines.filter((l) => !l.pantry && hasPaidPrice(l.item)).length;
+  return { fresh, pantry, paid, items: lines.filter((l) => !l.pantry).length };
 }
 
 export const money = (n: number) => `$${n.toFixed(2)}`;

@@ -28,6 +28,7 @@ import { mealOn } from '../engine/meals';
 import { AddMealButton, MealRow, MealToggles } from './Meals';
 import { PotRating } from './PotRating';
 import { groceryFit, planRecipeIds } from '../engine/grocery';
+import PricesSheet from './PricesSheet';
 import { newId } from '../state';
 
 const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
@@ -76,6 +77,7 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
   const spice = spiceRule(state);
   const ids = plan?.dishes.map((d) => d.recipeId) ?? [];
   const cost = weekCost(plan ? planRecipeIds(plan) : []);
+  const [pricesOpen, setPricesOpen] = useState(false);
   const soupIds = new Set(ids.filter((id) => isSoup(recipeById(id))));
 
   const search = (fn: (st: AppState) => AppState) => {
@@ -128,6 +130,7 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
       {switcher}
       {draftOfNext && <Notice tone="brand" icon="eye-off-outline">Your {cookL()} still sees week {sentWeek} until you send this one. Sending it starts a fresh shopping list.</Notice>}
       {plan && !searching && <WeekStart />}
+      {plan && pricesOpen && <PricesSheet recipeIds={planRecipeIds(plan)} lang="en" onClose={() => setPricesOpen(false)} />}
       <Grid cols={isTablet ? 2 : 1}>
       {plan && !searching && (
         <Card style={{ backgroundColor: C.brand, padding: 18 }}>
@@ -135,7 +138,11 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
             <View style={{ flex: 1 }}>
               <Text style={{ color: '#C9D3A0', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>WEEK {plan.weekNo} · {fmtDay(startDateOf(plan)).toUpperCase()} TO {fmtDay(addDays(startDateOf(plan), 6)).toUpperCase()}</Text>
               <Text style={{ color: '#fff', fontFamily: F.displayX, fontSize: 32, marginTop: 4, letterSpacing: -1 }}>{ballpark(cost.fresh)}</Text>
-              <Text style={{ color: '#E4E8CF', fontSize: 13 }}>a rough guide only: prices change and these are not real NTUC prices · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
+              <Text style={{ color: '#E4E8CF', fontSize: 13 }}>{cost.paid ? `a rough guide: ${cost.paid} of ${cost.items} items use prices your family paid, the rest are sample prices` : 'a rough guide from sample prices, not real shop prices yet'} · {roughMoney(cost.fresh / Math.max(1, ids.length))} a dish</Text>
+              <Pressable onPress={() => setPricesOpen(true)} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                <Icon name="pricetags-outline" size={14} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Real prices and dish costs</Text>
+              </Pressable>
             </View>
             <View style={{ backgroundColor: plan.status === 'draft' ? '#FFF0D2' : '#E9EDCF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', gap: 4, alignItems: 'center' }}>
               <Icon name={plan.status === 'draft' ? 'eye-off-outline' : 'checkmark-circle'} size={13} color={plan.status === 'draft' ? C.amber : C.green} />

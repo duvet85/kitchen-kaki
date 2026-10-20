@@ -1,6 +1,6 @@
 import { SLOTS, Slot, methodOf, slotOf } from '../data/methods';
 import { recipeById } from '../data/recipes';
-import { CATALOGUE } from '../data/store';
+import { CATALOGUE, priceOf } from '../data/store';
 import { AppState, Lesson, LessonStep, PlannedDish, Recipe } from '../types';
 import { placeDish, removeDish } from './balance';
 import { groceryFit, PANTRY } from './grocery';
@@ -132,7 +132,7 @@ export function lessonGroceries(st: AppState, trio: Recipe[]) {
   }
   for (const x of have) { coming.delete(x); toBuy.delete(x); }
   for (const x of coming) toBuy.delete(x);
-  const cost = [...toBuy].reduce((a, k) => a + (CATALOGUE[k]?.price ?? 0), 0);
+  const cost = [...toBuy].reduce((a, k) => a + priceOf(k), 0);
   const pantry = [...new Set(trio.flatMap((r) => r.ingredients.map((i) => i.item)).filter((k) => PANTRY.has(k)))];
   return { have: [...have], coming: [...coming], toBuy: [...toBuy], cost, pantry };
 }

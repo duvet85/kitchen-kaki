@@ -15,7 +15,7 @@ const MAX_PDF = 5 * 1024 * 1024;
 const WEB = Platform.OS === 'web';
 
 /** Shrinks a picture so its text stays readable but the upload stays small (longest side 2000 px). */
-async function readable(uri: string, width?: number, height?: number): Promise<string> {
+export async function readable(uri: string, width?: number, height?: number): Promise<string> {
   const long = Math.max(width ?? 0, height ?? 0);
   const resize = long > 2000 ? [{ resize: (width ?? 0) >= (height ?? 0) ? { width: 2000 } : { height: 2000 } }] : [];
   const out = await ImageManipulator.manipulateAsync(uri, resize, { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true });
@@ -23,7 +23,7 @@ async function readable(uri: string, width?: number, height?: number): Promise<s
 }
 
 /** Web: the browser's own file picker (on a phone it offers the camera, photos and files). */
-const pickWeb = (camera: boolean) => new Promise<File | null>((done) => {
+export const pickWeb = (camera: boolean) => new Promise<File | null>((done) => {
   const el = document.createElement('input');
   el.type = 'file';
   el.accept = camera ? 'image/*' : 'image/*,application/pdf';
@@ -31,7 +31,7 @@ const pickWeb = (camera: boolean) => new Promise<File | null>((done) => {
   el.onchange = () => done(el.files?.[0] ?? null);
   el.click();
 });
-const dataUrl = (f: Blob) => new Promise<string>((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => bad(r.error); r.readAsDataURL(f); });
+export const dataUrl = (f: Blob) => new Promise<string>((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => bad(r.error); r.readAsDataURL(f); });
 
 /** Scan a recipe from a photo or a PDF: Gemini copies what it shows (never makes up steps), then the owner checks it before it joins the book. */
 export default function ScanRecipe({ onClose }: { onClose: () => void }) {
