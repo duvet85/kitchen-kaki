@@ -5,6 +5,7 @@ import { recipeById } from '../data/recipes';
 import { CATALOGUE } from '../data/store';
 import DishPhoto from '../DishPhoto';
 import { PHOTOS } from '../data/photos';
+import ManualRecipe from './ManualRecipe';
 import { dishCost, dishCostInfo, dishMoney, groceryFit, roughMoney } from '../engine/grocery';
 import { planDayName, dayAfter, exclusionReasons, eligibleRecipes, familyScore, isSoup, isVegDish, missingFavourite, predictedStars, spiceRule } from '../engine/planner';
 import { useApp } from '../state';
@@ -122,6 +123,7 @@ export function DishDetail({ recipe: r, onClose }: { recipe: Recipe; onClose: ()
           <Text style={{ lineHeight: 21 }}>{r.notes}</Text>
         </View>
       ) : null}
+      {family?.role !== 'helper' && r.custom && <EditRecipe recipe={r} onDone={onClose} />}
       {family?.role !== 'helper' && <DeleteRecipe recipe={r} onDone={onClose} />}
     </Sheet>
   );
@@ -140,6 +142,17 @@ export function deleteRecipe(st: AppState, r: Recipe): AppState {
   return r.custom
     ? { ...out, customRecipes: (st.customRecipes ?? []).filter((x) => x.id !== r.id) }
     : { ...out, hiddenRecipes: [...new Set([...(st.hiddenRecipes ?? []), r.id])] };
+}
+
+/** Change a recipe the family added (typed in, imported or scanned): opens the same form with it filled in. */
+function EditRecipe({ recipe: r, onDone }: { recipe: Recipe; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <View style={{ marginTop: 22 }}>
+      <Button small kind="ghost" icon="create-outline" label="Edit this recipe" onPress={() => setEditing(true)} />
+      {editing && <ManualRecipe recipe={r} onClose={() => setEditing(false)} onSaved={onDone} />}
+    </View>
+  );
 }
 
 function DeleteRecipe({ recipe: r, onDone }: { recipe: Recipe; onDone: () => void }) {

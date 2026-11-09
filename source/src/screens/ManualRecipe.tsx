@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Image, Modal, ScrollView, TextInput, View } from 'react-native';
 import { ALLERGENS, CUISINES, PROTEINS, cleanUrl, normaliseDraft, youtubeUrl } from '../ai/draft';
 import { guessDetails, matchCatalogue, splitIngredient } from '../ai/importMap';
+import { CATALOGUE } from '../data/store';
 import { useApp } from '../state';
 import { PhotoError, Shrunk, pickPhoto, savePhoto } from '../sync/userPhotos';
 import { Allergen, Cuisine, Level, Meal, Protein, Recipe } from '../types';
@@ -20,29 +21,40 @@ const LEVELS: Level[] = ['low', 'med', 'high'];
 const lines = (t: string) => t.split('\n').map((l) => l.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
 const mins = (t: string) => { const n = parseInt(t, 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 600) : 0; };
 
-/** Add a recipe by typing it all in: the family's own dish, their own photo and video. No AI. */
-export default function ManualRecipe({ onClose }: { onClose: () => void }) {
+/** The recipe's ingredients as the one-per-line text the form uses ("500 g chicken thighs"), each with the shop item it came from. */
+const ingredientLines = (r: Recipe) => r.ingredients.map((i) => {
+  const name = (CATALOGUE[i.item]?.name ?? i.item).toLowerCase();
+  return { item: i.item, line: i.qty && i.qty !== 'as needed' ? `${i.qty} ${name}` : name };
+});
+const sourceText = (r: Recipe) => r.sourceUrl ?? r.source.replace(/ \(typed in by the family\)$/, '').replace(/^(Family recipe|Supplied by the family|No source given).*$/, '');
+
+/**
+ * Add a recipe by typing it all in: the family's own dish, their own photo and video. No AI.
+ * With `recipe` it opens that recipe filled in, and saving changes it in place (same id, so menus, ratings and favourites stay).
+ */
+export default function ManualRecipe({ onClose, recipe: old, onSaved }: { onClose: () => void; recipe?: Recipe; onSaved?: () => void }) {
   const { state, update, family } = useApp();
+  const origLines = old ? ingredientLines(old) : [];
   const [tab, setTab] = useState<Tab>('Overview');
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<Kind>('dish');
-  const [cuisine, setCuisine] = useState<Cuisine | null>(null);
-  const [protein, setProtein] = useState<Protein | null>(null);
-  const [cols, setCols] = useState<string[]>([]);
+  const [name, setName] = useState(old?.name ?? '');
+  const [kind, setKind] = useState<Kind>(old ? (old.course === 'soup' ? 'soup' : old.meal ?? 'dish') : 'dish');
+  const [cuisine, setCuisine] = useState<Cuisine | null>(old?.cuisine ?? null);
+  const [protein, setProtein] = useState<Protein | null>(old?.protein ?? null);
+  const [cols, setCols] = useState<string[]>(old ? (state.collections ?? []).filter((c) => c.ids.includes(old.id)).map((c) => c.id) : []);
   const [making, setMaking] = useState(false);
-  const [source, setSource] = useState('');
-  const [serves, setServes] = useState('');
+  const [source, setSource] = useState(old ? sourceText(old) : '');
+  const [serves, setServes] = useState(old?.serves ?? '');
   const [prep, setPrep] = useState('');
-  const [cook, setCook] = useState('');
-  const [stars, setStars] = useState(0);
-  const [ing, setIng] = useState('');
-  const [dir, setDir] = useState('');
-  const [notes, setNotes] = useState('');
-  const [spice, setSpice] = useState<number | null>(null);
-  const [levels, setLevels] = useState<{ sodium?: Level; sugar?: Level; satFat?: Level }>({});
-  const [allergens, setAllergens] = useState<Allergen[] | null>(null);
+  const [cook, setCook] = useState(old ? String(old.minutes) : '');
+  const [stars, setStars] = useState(old ? state.ratings[old.id] ?? 0 : 0);
+  const [ing, setIng] = useState(origLines.map((x) => x.line).join('\n'));
+  const [dir, setDir] = useState(old ? old.steps.join('\n') : '');
+  const [notes, setNotes] = useState(old?.notes ?? '');
+  const [spice, setSpice] = useState<number | null>(old ? old.spice : null);
+  const [levels, setLevels] = useState<{ sodium?: Level; sugar?: Level; satFat?: Level }>(old ? { sodium: old.sodium, sugar: old.sugar, satFat: old.satFat } : {});
+  const [allergens, setAllergens] = useState<Allergen[] | null>(old ? old.allergens : null);
   const [photo, setPhoto] = useState<Shrunk | null>(null);
-  const [video, setVideo] = useState('');
+  const [video, setVideo] = useState(old?.videoUrl ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,36 +73,49 @@ export default function ManualRecipe({ onClose }: { onClose: () => void }) {
     const parts = ingLines.map(splitIngredient);
     const d = normaliseDraft({
       ...guessDetails(name, ingLines), name: name.trim(), minutes: mins(prep) + mins(cook) || 30,
-      ingredients: parts.map((p) => ({ item: matchCatalogue(p.name), name: p.name.replace(/^./, (c) => c.toUpperCase()), qty: p.qty })),
+      // a line left as it was keeps its shop item, so editing the method doesn't re-guess the shopping list
+      ingredients: parts.map((p, i) => ({ item: origLines.find((o) => o.line === ingLines[i])?.item ?? matchCatalogue(p.name), name: p.name.replace(/^./, (c) => c.toUpperCase()), qty: p.qty })),
       steps, ...(protein ? { protein } : {}), ...(cuisine ? { cuisine } : {}), ...(spice !== null ? { spice } : {}), ...levels,
       course: kind === 'soup' ? 'soup' : undefined,
     }, link, undefined, vid, true);
     if (!d) { setError('Check the ingredients: at least 2 different ones are needed.'); return; }
     const { aiDrafted: _a, ...rest } = d.recipe;
+    const sourceKept = !!old && source === sourceText(old);
     const recipe: Recipe = {
+      ...(old ?? {}),
       ...rest,
-      source: link ? 'Supplied by the family' : source.trim() ? `${source.trim().slice(0, 80)} (typed in by the family)` : 'Family recipe (typed in by the family)',
-      ...(allergens ? { allergens } : {}),
-      ...(kind !== 'dish' && kind !== 'soup' ? { meal: kind } : {}),
-      ...(serves.trim() ? { serves: serves.trim().slice(0, 40) } : {}),
-      ...(notes.trim() ? { notes: notes.trim().slice(0, 2000) } : {}),
+      ...(old ? { id: old.id, emoji: old.emoji, ...(old.name === rest.name ? { i18n: old.i18n } : {}), ...(old.imageUrl ? { imageUrl: old.imageUrl } : {}) } : {}),
+      ...(sourceKept && old ? { source: old.source, sourceUrl: old.sourceUrl, sourceName: old.sourceName } : {
+        source: link ? 'Supplied by the family' : source.trim() ? `${source.trim().slice(0, 80)} (typed in by the family)` : 'Family recipe (typed in by the family)',
+        sourceUrl: link, sourceName: undefined,
+      }),
+      // editing never drops an allergen the ingredients now show: the ticked ones plus what the ingredients give away
+      ...(allergens ? { allergens: old ? [...new Set([...allergens, ...rest.allergens])] : allergens } : {}),
+      meal: kind !== 'dish' && kind !== 'soup' ? kind : undefined,
+      course: kind === 'soup' ? 'soup' : undefined,
+      serves: serves.trim() ? serves.trim().slice(0, 40) : undefined,
+      notes: notes.trim() ? notes.trim().slice(0, 2000) : undefined,
+      videoUrl: vid,
       custom: true,
     };
     setBusy(true); setError(null);
     let pic: { path?: string } | null = null;
     if (photo) {
-      try { pic = await savePhoto(recipe.id, photo, family); } catch (e) { setBusy(false); setError(`${e instanceof PhotoError ? e.message : 'The photo could not be saved.'} Remove the photo to save the recipe without it.`); return; }
+      try { pic = await savePhoto(recipe.id, photo, family, state.userPhotos?.[recipe.id]); } catch (e) { setBusy(false); setError(`${e instanceof PhotoError ? e.message : 'The photo could not be saved.'} Remove the photo to save the recipe without it.`); return; }
     }
     update((st) => ({
       ...st,
-      customRecipes: [...(st.customRecipes ?? []), recipe],
+      customRecipes: old ? (st.customRecipes ?? []).map((x) => (x.id === old.id ? recipe : x)) : [...(st.customRecipes ?? []), recipe],
       customItems: { ...st.customItems, ...d.newItems },
-      ratings: stars ? { ...st.ratings, [recipe.id]: stars } : st.ratings,
-      collections: (st.collections ?? []).map((c) => (cols.includes(c.id) ? { ...c, ids: [...c.ids, recipe.id] } : c)),
+      ratings: stars ? { ...st.ratings, [recipe.id]: stars } : old ? Object.fromEntries(Object.entries(st.ratings).filter(([k]) => k !== old.id)) : st.ratings,
+      collections: (st.collections ?? []).map((c) => (cols.includes(c.id) ? { ...c, ids: [...new Set([...c.ids, recipe.id])] } : old ? { ...c, ids: c.ids.filter((x) => x !== recipe.id) } : c)),
+      // the cook's translated steps belong to the old wording; they are made again from the changed recipe
+      ...(old ? { aiTranslations: Object.fromEntries(Object.entries(st.aiTranslations).filter(([k]) => k !== old.id)) } : {}),
       ...(pic ? { userPhotos: { ...(st.userPhotos ?? {}), [recipe.id]: { ...pic, at: new Date().toISOString(), by: family?.myName } } } : {}),
     }));
     setBusy(false);
     onClose();
+    onSaved?.();
   };
 
   const field = { borderBottomWidth: 1, borderColor: C.line, paddingVertical: 12, paddingHorizontal: 4, fontSize: 16, color: C.ink, fontFamily: F.regular } as const;
@@ -101,7 +126,7 @@ export default function ManualRecipe({ onClose }: { onClose: () => void }) {
       <View style={{ flex: 1, backgroundColor: C.bg }}>
         <Row style={{ flexWrap: 'nowrap', padding: 10, gap: 8, backgroundColor: C.card, borderBottomWidth: 1, borderColor: C.line }}>
           <IconButton icon="close" label="Cancel" onPress={onClose} />
-          <Text style={{ flex: 1, textAlign: 'center', fontFamily: F.display, fontSize: 18 }}>New recipe</Text>
+          <Text style={{ flex: 1, textAlign: 'center', fontFamily: F.display, fontSize: 18 }}>{old ? 'Edit recipe' : 'New recipe'}</Text>
           {busy ? <ActivityIndicator color={C.brand} /> : <Button small label="Save" onPress={save} />}
         </Row>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, backgroundColor: C.card }} contentContainerStyle={{ gap: 6, padding: 8 }}>
@@ -172,6 +197,7 @@ export default function ManualRecipe({ onClose }: { onClose: () => void }) {
           {tab === 'Photo & video' && (
             <>
               <Label>Your photo</Label>
+              {old && !photo && <Text style={{ color: C.faint, fontSize: 12, marginBottom: 6 }}>The recipe keeps its current photo unless you choose another one.</Text>}
               {photo && <Image source={{ uri: `data:image/jpeg;base64,${photo.base64}` }} accessibilityLabel="Your photo of the dish" style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 16, backgroundColor: C.line, marginBottom: 8 }} />}
               <Row style={{ gap: 8 }}>
                 <Button small icon="camera" label="Take a photo" onPress={() => choose('camera')} />
