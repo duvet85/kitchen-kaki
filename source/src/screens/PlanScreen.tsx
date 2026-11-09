@@ -279,7 +279,6 @@ function PlanBody({ switcher, draftOfNext, sentWeek, onOpenNext }: { switcher: R
           {Array.from({ length: settings.daysPerWeek }, (_, day) => {
             const dishes = plan.dishes.filter((d) => d.day === day);
             const dayMeals = MEAL_KINDS.filter((k) => mealsOn(state).includes(k) || mealOn(plan, day, k));
-            if (!dishes.length && plan.status === 'draft' && !(plan.meals ?? []).some((m) => m.day === day)) return null;
             return (
               <View key={day}>
                 <Row style={{ marginTop: 22, marginBottom: 2, gap: 8 }}>
